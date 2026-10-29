@@ -20,6 +20,7 @@ static uint64_t haptic_ticks, haptic_retry_at;
 static int haptic_test_ticks;
 static NSTimer *haptic_timer;
 static bool haptic_trace;
+static uint64_t face_bits[4];   // Switch button for GameController A / B / X / Y, or 0 to use the layout table.
 
 static void haptics_close(void) {
     haptic_generation++;
@@ -140,9 +141,28 @@ void gamepad_describe(char *name, unsigned size, bool *haptics) {
     *haptics = selected.haptics != nil;
 }
 
+// GameController reports Nintendo face buttons by printed label on some systems and by position on others; the
+// glyph it names for each button tells which. Other glyphs (PlayStation shapes) fall back to the layout table.
+static bool learn_face_letters(GCExtendedGamepad *pad) {
+    GCControllerButtonInput *inputs[] = {pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY};
+    const uint64_t bits[] = {DM_BTN_A, DM_BTN_B, DM_BTN_X, DM_BTN_Y};
+    uint64_t seen = 0;
+    for (int i = 0; i < 4; i++) {
+        NSString *letter = [inputs[i].sfSymbolsName componentsSeparatedByString:@"."].firstObject.lowercaseString;
+        NSUInteger index = letter ? [@[@"a", @"b", @"x", @"y"] indexOfObject:letter] : NSNotFound;
+        if (index == NSNotFound || seen & bits[index]) { memset(face_bits, 0, sizeof face_bits); return false; }
+        face_bits[i] = bits[index]; seen |= bits[index];
+    }
+    return true;
+}
+
 static void publish(GCController *controller, GCExtendedGamepad *pad) {
     if (!active || controller != selected) return;
-    uint64_t buttons = dm_padmap_face(dm_padmap_kind(controller.productCategory.UTF8String, controller.vendorName.UTF8String),
+    uint64_t buttons = 0;
+    if (face_bits[0]) {
+        GCControllerButtonInput *inputs[] = {pad.buttonA, pad.buttonB, pad.buttonX, pad.buttonY};
+        for (int i = 0; i < 4; i++) if (inputs[i].pressed) buttons |= face_bits[i];
+    } else buttons = dm_padmap_face(dm_padmap_kind(controller.productCategory.UTF8String, controller.vendorName.UTF8String),
         pad.buttonA.pressed, pad.buttonB.pressed, pad.buttonX.pressed, pad.buttonY.pressed);
     if (pad.leftShoulder.pressed) buttons |= DM_BTN_L;
     if (pad.rightShoulder.pressed) buttons |= DM_BTN_R;
@@ -169,8 +189,12 @@ static void select_controller(void) {
             (void)element; GCController *current = weak_controller;
             if (current) publish(current, pad);
         };
-        fprintf(stderr, "GAMEPAD connected vendor=%s category=%s; face buttons follow printed letters\n",
-            controller.vendorName.UTF8String ?: "unknown", controller.productCategory.UTF8String ?: "unknown");
+        GCExtendedGamepad *pad = controller.extendedGamepad;
+        bool letters = learn_face_letters(pad);
+        fprintf(stderr, "GAMEPAD connected vendor=%s category=%s; face buttons by %s (A=%s B=%s X=%s Y=%s)\n",
+            controller.vendorName.UTF8String ?: "unknown", controller.productCategory.UTF8String ?: "unknown",
+            letters ? "printed letter" : "layout", pad.buttonA.sfSymbolsName.UTF8String ?: "?", pad.buttonB.sfSymbolsName.UTF8String ?: "?",
+            pad.buttonX.sfSymbolsName.UTF8String ?: "?", pad.buttonY.sfSymbolsName.UTF8String ?: "?");
         fprintf(stderr, "HAPTIC controller capability=%s\n", controller.haptics ? "available" : "unavailable");
         publish(controller, controller.extendedGamepad); break;
     }

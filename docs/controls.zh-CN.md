@@ -23,6 +23,8 @@
 
 用 ⌘, 或菜单 **View → Controls** 打开。设置保存在 `work/settings.json`（可用 `ZELDA_SETTINGS` 指定其他路径）。
 
+游戏语言跟随系统的首选语言（繁体中文、简体中文、日语、韩语、英语、法语、德语、意大利语、西班牙语、荷兰语或俄语；其他语言使用美式英语）。要改用其他语言，先退出游戏，再在 `work/settings.json` 中加入 `"language"`，取值为 `ja`、`en-US`、`en-GB`、`fr`、`fr-CA`、`de`、`it`、`es`、`es-419`、`nl`、`ru`、`ko`、`zh-Hans`、`zh-Hant` 之一。
+
 | 设置 | 选项 | 说明 |
 | --- | --- | --- |
 | Frame rate | 30 / 60 / 90 FPS | 默认 60。目标不代表一定达到；预渲染电影仍按 30 播放 |

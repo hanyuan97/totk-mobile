@@ -22,3 +22,6 @@ zelda_settings_t zelda_settings(void);
 // Validates and writes the whole set atomically; returns false (and keeps the old values) if invalid or unwritable.
 bool zelda_settings_store(zelda_settings_t settings);
 bool zelda_settings_valid_fps(unsigned fps);
+// Horizon language code the game runs in: the "language" setting when it names a language the game ships,
+// otherwise the closest match to the system's preferred languages (en-US when none matches).
+const char *zelda_language(void);

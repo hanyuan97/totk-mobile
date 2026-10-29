@@ -25,3 +25,4 @@ module_t *module_of(const void *p) {
 }
 void zelda_present_metalfx(int enabled) { (void)enabled; }
 int zelda_present_metalfx_mode(void) { return 0; }
+const char *zelda_language(void) { return "en-US"; }
