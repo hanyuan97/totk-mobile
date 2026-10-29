@@ -52,6 +52,7 @@ work/venv/bin/python tools/prepare_modules.py --check
 | --- | --- |
 | `ZELDA_TIMEOUT_SECONDS` | N 秒后结束游戏（0 为不限，最大 3600）。`build_and_run.sh` 默认 120，启动入口默认 0 |
 | `ZELDA_SETTINGS` | 使用其他设置文件代替 `work/settings.json` |
+| `ZELDA_CLOUD_SAVE` | `off` 关闭 Mac 上的 iCloud 存档同步；填写文件夹路径则改为同步到该文件夹，而不是 `iCloud 云盘/Zelda-Mobile` |
 | `ZELDA_TARGET_FPS`、`ZELDA_METALFX` | 本次运行覆盖已保存的帧率目标与 MetalFX 设置 |
 | `ZELDA_SHARED_FONT` | 作为共享系统字体的 TrueType 字体 |
 | `ZELDA_SHADER_IR=0`、`ZELDA_SHADER_PREP_ALL=1` | 忽略离线 Metal 库 / 强制完整准备一轮着色器 |

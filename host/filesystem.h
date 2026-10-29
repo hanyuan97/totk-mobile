@@ -15,3 +15,8 @@ uint32_t filesystem_file(local_file *file, unsigned command, uint64_t offset, vo
 void filesystem_close(local_file *file);
 uint32_t filesystem_commit(unsigned volume);
 void filesystem_shutdown(void);
+// Clones the last published snapshot of a volume; never observes a half-published commit.
+int filesystem_snapshot(unsigned volume, const char *destination);
+// Publishes `source` as an unmounted volume and moves the replaced snapshot to `previous`.
+int filesystem_replace(unsigned volume, const char *source, const char *previous);
+extern void (*filesystem_committed)(unsigned volume);   // Called after each successful commit.

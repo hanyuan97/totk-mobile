@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -16,6 +17,8 @@ enum { OK = 0, NOT_FOUND = 0x202, EXISTS = 0x402, FAILED = (5305 << 9) | 2 }; //
 static const char *roots[] = {"work/save", "work/temporary", "work/cache-0", "work/cache-1", "work/cache-2", "work/cache-3",
     "work/cache-4", "work/cache-5", "work/cache-6", "work/cache-7"};
 static struct { int root, lock; bool mounted, poisoned; unsigned writers, files, refs; } volumes[sizeof roots / sizeof *roots];
+static pthread_mutex_t publish = PTHREAD_MUTEX_INITIALIZER;   // Orders published-snapshot swaps against outside readers.
+void (*filesystem_committed)(unsigned volume);
 struct local_file { int fd; unsigned volume, mode; };
 static uint32_t error(void) { return errno == ENOENT || errno == ENOTDIR ? NOT_FOUND : errno == EEXIST ? EXISTS : FAILED; }
 
@@ -272,8 +275,38 @@ uint32_t filesystem_commit(unsigned volume) {
     snprintf(path, sizeof path, "%s.work", roots[volume]); snprintf(snapshot, sizeof snapshot, "%s.new", roots[volume]);
     // Same APFS clone-and-swap transaction used by d2r-mobile; only a complete snapshot is published.
     if (remove_tree(AT_FDCWD, snapshot) || clonefile(path, snapshot, CLONE_NOFOLLOW)) return FAILED;
-    if (renamex_np(snapshot, roots[volume], RENAME_SWAP)) { remove_tree(AT_FDCWD, snapshot); return FAILED; }
+    pthread_mutex_lock(&publish);
+    int swapped = renamex_np(snapshot, roots[volume], RENAME_SWAP);
+    pthread_mutex_unlock(&publish);
+    if (swapped) { remove_tree(AT_FDCWD, snapshot); return FAILED; }
     remove_tree(AT_FDCWD, snapshot);
     fprintf(stderr, "FILESYSTEM transaction committed volume=%u\n", volume);
+    if (filesystem_committed) filesystem_committed(volume);
     return OK;
+}
+
+int filesystem_snapshot(unsigned volume, const char *destination) {
+    if (volume >= sizeof roots / sizeof *roots || volume == 1) { errno = EINVAL; return -1; }
+    if (remove_tree(AT_FDCWD, destination)) return -1;
+    pthread_mutex_lock(&publish);
+    int status = clonefile(roots[volume], destination, CLONE_NOFOLLOW);
+    pthread_mutex_unlock(&publish);
+    return status;
+}
+
+int filesystem_replace(unsigned volume, const char *source, const char *previous) {
+    if (volume >= sizeof roots / sizeof *roots || volume == 1) { errno = EINVAL; return -1; }
+    char lock_path[64]; snprintf(lock_path, sizeof lock_path, "%s.lock", roots[volume]);
+    int lock = open(lock_path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (lock < 0) return -1;
+    // A mounted volume holds this lock; never swap a save out from under a running game.
+    if (flock(lock, LOCK_EX | LOCK_NB)) { close(lock); return -1; }
+    struct stat st; int status;
+    pthread_mutex_lock(&publish);
+    if (lstat(roots[volume], &st)) status = errno == ENOENT ? rename(source, roots[volume]) : -1;
+    else if (!S_ISDIR(st.st_mode)) { errno = ENOTDIR; status = -1; }
+    else if (!(status = renamex_np(source, roots[volume], RENAME_SWAP)) && (status = renamex_np(source, previous, RENAME_EXCL)))
+        renamex_np(source, roots[volume], RENAME_SWAP);   // Keep the old snapshot published if it cannot be set aside.
+    pthread_mutex_unlock(&publish);
+    close(lock); return status;
 }

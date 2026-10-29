@@ -32,6 +32,7 @@ Unprefixed `nvn_*` files live in `host/`; `test_*` files live in `tests/`.
 | ARM64 rewrite, loading, version binding | `tools/patch_module.py`, `tools/prepare_modules.py`, `host/probe.c` | `test_calls.py`, `test_exclusive.py`, `test_local_images.py` |
 | Time step and render size patches | `tools/game_timing.py`, `tools/render_scale.py`, `host/game_timing.c` | `test_game_timing.py`, `test_render_scale.py` |
 | Kernel, threads, IPC, file system | `host/kernel.c`, `threads.c`, `services.c`, `filesystem.c` | matching `test_*.c` |
+| iCloud save sync | `host/cloud_save.m` | `test_cloud_save.m` |
 | Mac window, settings, control panel | `host/graphics.m`, `control_panel.inc`, `settings.m`, `display.c` | `test_settings.m`, `test_display.c`, `test_launcher.py` |
 | iOS front end and signed build | `ios/main.m`, `ios/CMakeLists.txt`, `script/ios.sh` | device checks |
 | Keyboard, controllers, rumble | `host/input.c`, `gamepad.m`, `vibration.c` | `test_vibration.c`, `test_gamepad_haptics.m` |

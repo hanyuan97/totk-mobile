@@ -3,6 +3,7 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <AVFAudio/AVFAudio.h>
 #import <GameController/GameController.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <mach/mach.h>
 #include <os/proc.h>
 #include <sys/resource.h>
@@ -19,6 +20,7 @@
 #include "game_timing.h"
 #include "shader_prep.h"
 #include "dmsh_chain.h"
+#include "cloud_save.h"
 
 extern int zelda_main(int, char **);
 extern void dm_gfx_suspend(int);
@@ -35,6 +37,11 @@ static pthread_mutex_t vsync_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void (*resource_report)(uint32_t, const char *);
 static NSString *documents;
 static GCVirtualController *touch_controller;
+static UIViewController<UIDocumentPickerDelegate> *controller;
+static NSURL *cloud_url;   // Security-scoped iCloud Drive folder, held for the app's lifetime.
+static BOOL cloud_checked;
+static NSString *const cloud_bookmark_key = @"ZeldaCloudSaveFolder", *const cloud_off_key = @"ZeldaCloudSaveOff";
+static void cloud_offer(void);
 
 static double physical_gib(void) {
     task_vm_info_data_t info={0};mach_msg_type_number_t count=TASK_VM_INFO_COUNT;
@@ -71,6 +78,7 @@ void front_run(void (*guest)(void)) {
         status([NSString stringWithFormat:@"Preparing shaders\n%u / %u\n\nFirst-time shader compilation can take a long time.\nPlease keep the app open. Later launches are usually faster.", count, total]);
     });
     fprintf(stderr, "SHADER_PREP end failed=%u seconds=%.3f\n", failed, CFAbsoluteTimeGetCurrent() - began);
+    cloud_save_wait();
     dispatch_sync(dispatch_get_main_queue(), ^{
         status_label.hidden = YES; guest_running = YES;
         for (UIView *view in status_label.superview.subviews) if ([view isKindOfClass:UIButton.class]) {
@@ -104,6 +112,23 @@ static void *boot(void *unused) {
     return NULL;
 }
 
+static NSURL *cloud_folder(void) {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    NSData *bookmark = [defaults dataForKey:cloud_bookmark_key];
+    if (!bookmark) return nil;
+    BOOL stale = NO;
+    NSURL *url = [NSURL URLByResolvingBookmarkData:bookmark options:0 relativeToURL:nil bookmarkDataIsStale:&stale error:nil];
+    if (!url || ![url startAccessingSecurityScopedResource]) {
+        fprintf(stderr, "CLOUD_SAVE folder bookmark unavailable; asking again\n");
+        [defaults removeObjectForKey:cloud_bookmark_key]; return nil;
+    }
+    if (stale) {
+        NSData *fresh = [url bookmarkDataWithOptions:0 includingResourceValuesForKeys:nil relativeToURL:nil error:nil];
+        if (fresh) [defaults setObject:fresh forKey:cloud_bookmark_key];
+    }
+    return url;
+}
+
 static void start_game(void) {
     if (launched) return;
     BOOL load_only = [NSProcessInfo.processInfo.arguments containsObject:@"--load-only"];
@@ -123,6 +148,11 @@ static void start_game(void) {
             status(@"Game files are not imported yet.\nFinish the transfer, then tap Retry."); return;
         }
     }
+    if (!load_only && !cloud_checked) {
+        cloud_checked = YES;
+        if (!cloud_url) cloud_url = cloud_folder();
+        if (!cloud_url && ![NSUserDefaults.standardUserDefaults boolForKey:cloud_off_key]) { cloud_offer(); return; }
+    }
     launched = YES;
     // Imported game assets are reproducible; keep only the player's save eligible for device backup.
     for (NSString *path in @[romfs,shaders]) if ([fm fileExistsAtPath:path]) {
@@ -133,6 +163,19 @@ static void start_game(void) {
     for (NSString *key in @[@"work", @"work/save", @"work/logs", @"work/tmp", @"work/shaders/source", @"work/shaders/variants"]) {
         if (![fm createDirectoryAtPath:[documents stringByAppendingPathComponent:key] withIntermediateDirectories:YES attributes:nil error:nil]) abort();
     }
+    if (cloud_url) cloud_save_begin(cloud_url, UIDevice.currentDevice.model, ^(NSArray<NSString *> *titles, void (^done)(NSUInteger)) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Choose a save to continue"
+                message:@"These saves were played separately. The one you do not choose is backed up in work/save-backups "
+                "on the device that holds it." preferredStyle:UIAlertControllerStyleAlert];
+            [titles enumerateObjectsUsingBlock:^(NSString *title, NSUInteger index, BOOL *stop) {
+                (void)stop;
+                [alert addAction:[UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault
+                    handler:^(UIAlertAction *action) { (void)action; done(index); }]];
+            }];
+            [controller presentViewController:alert animated:YES completion:nil];
+        });
+    }, ^(NSString *text) { status(text); });
     setenv("ZELDA_ROMFS", romfs.fileSystemRepresentation, 1);
     setenv("ZELDA_SHARED_FONT", [[NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"shared.ttf"] fileSystemRepresentation], 1);
     setenv("ZELDA_SETTINGS", [[documents stringByAppendingPathComponent:@"work/settings.json"] fileSystemRepresentation], 1);
@@ -166,12 +209,13 @@ static void start_game(void) {
 }
 @end
 
-@interface ZeldaController : UIViewController
+@interface ZeldaController : UIViewController <UIDocumentPickerDelegate>
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, strong) NSTimer *monitor;
 @end
 @implementation ZeldaController
 - (void)loadView {
+    controller = self;
     self.view = [[ZeldaView alloc] initWithFrame:UIScreen.mainScreen.bounds];
     self.view.backgroundColor = UIColor.blackColor;
     metal_layer = (CAMetalLayer *)self.view.layer;
@@ -240,6 +284,16 @@ static void start_game(void) {
 - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
 - (void)press:(UIButton *)button { if (!button.tag) start_game();else input_key(button.tag==1?48:36,1); }
 - (void)release:(UIButton *)button { if (button.tag) input_key(button.tag==1?48:36,0); }
+- (void)documentPicker:(UIDocumentPickerViewController *)picker didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
+    (void)picker; NSURL *url = urls.firstObject;
+    if ([url startAccessingSecurityScopedResource]) {
+        NSData *bookmark = [url bookmarkDataWithOptions:0 includingResourceValuesForKeys:nil relativeToURL:nil error:nil];
+        if (bookmark) [NSUserDefaults.standardUserDefaults setObject:bookmark forKey:cloud_bookmark_key];
+        cloud_url = url;
+    } else fprintf(stderr, "CLOUD_SAVE picked folder unavailable\n");
+    start_game();
+}
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)picker { (void)picker; start_game(); }
 - (void)togglePerformance:(UIButton *)button {
     (void)button; performance_expanded = !performance_expanded; [self updatePerformance];
 }
@@ -290,6 +344,25 @@ static void start_game(void) {
 }
 @end
 
+static void cloud_offer(void) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Sync saves with iCloud?"
+        message:@"Choose or create the Zelda-Mobile folder in iCloud Drive. The Mac keeps its saves in the same folder."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Choose Folder" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        (void)action;
+        UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder]];
+        picker.delegate = controller;
+        [controller presentViewController:picker animated:YES completion:nil];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Not Now" style:UIAlertActionStyleCancel handler:^(UIAlertAction *action) {
+        (void)action; start_game();
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Don't Sync" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        (void)action; [NSUserDefaults.standardUserDefaults setBool:YES forKey:cloud_off_key]; start_game();
+    }]];
+    [controller presentViewController:alert animated:YES completion:nil];
+}
+
 @interface ZeldaSceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property (nonatomic, strong) UIWindow *window;
 @end
@@ -304,6 +377,14 @@ static void start_game(void) {
     UIApplication.sharedApplication.idleTimerDisabled=NO;
     (void)scene;if (guest_running) { mtl_present_discard(1);dm_gfx_suspend(1); }
     [AVAudioSession.sharedInstance setActive:NO error:nil];
+    UIApplication *app=UIApplication.sharedApplication;
+    __block UIBackgroundTaskIdentifier task=[app beginBackgroundTaskWithName:@"Save sync" expirationHandler:^{
+        [app endBackgroundTask:task];task=UIBackgroundTaskInvalid;
+    }];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{
+        cloud_save_flush();
+        dispatch_async(dispatch_get_main_queue(),^{ if (task!=UIBackgroundTaskInvalid) [app endBackgroundTask:task];task=UIBackgroundTaskInvalid; });
+    });
     fprintf(stderr,"IOS_LIFECYCLE background\n");fflush(NULL);
 }
 - (void)sceneWillEnterForeground:(UIScene *)scene {
@@ -332,6 +413,10 @@ static void start_game(void) {
     NSDictionary *disk=[NSFileManager.defaultManager attributesOfFileSystemForPath:documents error:nil];
     fprintf(stderr,"IOS_STORAGE free_gib=%.3f\n",[disk[NSFileSystemFreeSize] unsignedLongLongValue]/1073741824.0);
     setenv("TZ",NSTimeZone.localTimeZone.name.UTF8String,1);tzset();
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--cloud-setup"]) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:cloud_bookmark_key];
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:cloud_off_key];
+    }
     return YES;
 }
 - (void)applicationDidReceiveMemoryWarning:(UIApplication *)app {

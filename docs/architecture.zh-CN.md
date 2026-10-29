@@ -32,6 +32,7 @@ RomFS ─ script/extract_shaders.py → 索引 → 配对 → 翻译 → 构建 
 | ARM64 改写、装载与版本绑定 | `tools/patch_module.py`、`tools/prepare_modules.py`、`host/probe.c` | `test_calls.py`、`test_exclusive.py`、`test_local_images.py` |
 | 时间步与渲染尺寸补丁 | `tools/game_timing.py`、`tools/render_scale.py`、`host/game_timing.c` | `test_game_timing.py`、`test_render_scale.py` |
 | 内核、线程、IPC、文件系统 | `host/kernel.c`、`threads.c`、`services.c`、`filesystem.c` | 对应的 `test_*.c` |
+| iCloud 存档同步 | `host/cloud_save.m` | `test_cloud_save.m` |
 | Mac 窗口、设置、控制面板 | `host/graphics.m`、`control_panel.inc`、`settings.m`、`display.c` | `test_settings.m`、`test_display.c`、`test_launcher.py` |
 | iOS 前端与签名构建 | `ios/main.m`、`ios/CMakeLists.txt`、`script/ios.sh` | 真机检查 |
 | 键盘、手柄与震动 | `host/input.c`、`gamepad.m`、`vibration.c` | `test_vibration.c`、`test_gamepad_haptics.m` |

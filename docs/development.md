@@ -52,6 +52,7 @@ Software checks cannot replace hands-on checks: what is visible on screen, what 
 | --- | --- |
 | `ZELDA_TIMEOUT_SECONDS` | Stop the game after N seconds (0 = never, maximum 3600). `build_and_run.sh` defaults to 120; the launchers default to 0 |
 | `ZELDA_SETTINGS` | Use another settings file instead of `work/settings.json` |
+| `ZELDA_CLOUD_SAVE` | `off` disables iCloud save sync on the Mac; a folder path syncs there instead of `iCloud Drive/Zelda-Mobile` |
 | `ZELDA_TARGET_FPS`, `ZELDA_METALFX` | Override the saved frame rate target and MetalFX setting for this run |
 | `ZELDA_SHARED_FONT` | TrueType font used as the shared system font |
 | `ZELDA_SHADER_IR=0`, `ZELDA_SHADER_PREP_ALL=1` | Ignore offline Metal libraries / force a full shader preparation pass |

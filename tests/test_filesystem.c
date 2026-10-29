@@ -76,7 +76,13 @@ int main(void) {
     filesystem_shutdown(); assert(!filesystem_mount(0)); check_contents("good");
     assert(!filesystem_path(0, 1, "/slot/data", NULL, 0, NULL, NULL));
     assert(!filesystem_path(0, 3, "/slot", NULL, 0, NULL, NULL));
-    assert(!filesystem_commit(0)); filesystem_shutdown();
+    assert(!filesystem_commit(0));
+    assert(!mkdir("work/incoming", 0700));
+    assert(filesystem_replace(0, "work/incoming", "work/previous")); // A mounted save is never swapped out.
+    filesystem_shutdown();
+    assert(!filesystem_snapshot(0, "work/copy") && !rmdir("work/copy"));
+    assert(!filesystem_replace(0, "work/incoming", "work/previous"));
+    assert(access("work/incoming", F_OK) && !rmdir("work/previous"));
     assert(!rmdir("work/save") && !unlink("work/save.lock") && !unlink("work/temporary.lock") && !rmdir("work"));
     assert(!fchdir(original)); close(original); assert(!rmdir(temp));
     puts("filesystem persistence, rollback, bounds and path confinement checks passed");
