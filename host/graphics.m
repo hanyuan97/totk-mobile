@@ -10,6 +10,7 @@
 #include "shader_prep.h"
 #include "game_timing.h"
 #include "settings.h"
+#include "cloud_save.h"
 #include <unistd.h>
 
 static CAMetalLayer *metal_layer;
@@ -80,6 +81,7 @@ void dm_res_report_register(void (*fn)(uint32_t, const char *)) { resource_repor
 
 static void *run_guest(void *unused) {
     (void)unused;
+    cloud_save_wait();
     @autoreleasepool { guest_entry(); }
     dispatch_async(dispatch_get_main_queue(), ^{ [NSApp terminate:nil]; });
     return NULL;
@@ -162,6 +164,7 @@ static void apply_vibration(int mode) {
     stop_vsync();
     gamepad_stop(); performance_stop();
     if (resource_report) resource_report(0, "window closed");
+    cloud_save_flush();
     // Reclaim live guest threads and host resources together; per-resource exit handlers race ongoing IPC.
     fflush(NULL); _exit(0);
 }
@@ -288,6 +291,18 @@ void front_run(void (*guest)(void)) {
         [NSApp activateIgnoringOtherApps:YES];
         gamepad_start(); gamepad_active(window.keyWindow);
         guest_entry = guest;
+        // The save sync runs beside shader preparation; the guest waits for it before mounting the save.
+        cloud_save_begin(cloud_save_default_directory(), NSHost.currentHost.localizedName,
+            ^(NSArray<NSString *> *titles, void (^done)(NSUInteger)) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSAlert *alert = [NSAlert new];
+                    alert.messageText = @"Choose a save to continue";
+                    alert.informativeText = @"These saves were played separately. The one you do not choose is backed up "
+                        "in work/save-backups on the device that holds it.";
+                    for (NSString *title in titles) [alert addButtonWithTitle:title];
+                    done((NSUInteger)([alert runModal] - NSAlertFirstButtonReturn));
+                });
+            }, nil);
         shader_prep_begin(window.contentView, metal_layer.device, ^{
             performance_start(window, !zelda_settings().hide_performance);
             controls_start(window);

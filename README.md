@@ -61,7 +61,7 @@ Xbox controllers connect automatically over Bluetooth or USB. Frame rate, resolu
 
 ## Saves
 
-Saves live in `work/save/` inside the project and use the same format as the console. See [Saves](docs/saves.md) for importing and backing up. **Do not modify this directory while the game is running.**
+Saves live in `work/save/` inside the project and use the same format as the console. They sync between the Mac and iPhone / iPad through iCloud Drive. See [Saves](docs/saves.md) for iCloud sync, importing and backing up. **Do not modify this directory while the game is running.**
 
 ## FAQ
 

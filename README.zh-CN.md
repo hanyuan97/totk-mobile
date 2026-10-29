@@ -61,7 +61,7 @@ Xbox 手柄经蓝牙或 USB 连接后自动接入。帧率、分辨率、MetalFX
 
 ## 存档
 
-存档位于项目内的 `work/save/`，格式与主机相同。导入与备份见 [存档](docs/saves.zh-CN.md)。**游戏运行时不要修改这个目录。**
+存档位于项目内的 `work/save/`，格式与主机相同。存档会通过 iCloud 云盘在 Mac 与 iPhone / iPad 之间同步。iCloud 同步、导入与备份见 [存档](docs/saves.zh-CN.md)。**游戏运行时不要修改这个目录。**
 
 ## 常见问题
 

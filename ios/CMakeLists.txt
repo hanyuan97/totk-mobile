@@ -15,7 +15,7 @@ add_executable(ZeldaMobile MACOSX_BUNDLE
   main.m "${IOS_WORK}/embed.S"
   "${HOST}/probe.c" "${HOST}/codec.c" "${HOST}/kernel.c" "${HOST}/threads.c"
   "${HOST}/timeline.c" "${HOST}/trace_writer.c" "${HOST}/services.c"
-  "${HOST}/audio.c" "${HOST}/audio_mixer.c" "${HOST}/filesystem.c"
+  "${HOST}/audio.c" "${HOST}/audio_mixer.c" "${HOST}/filesystem.c" "${HOST}/cloud_save.m"
   "${HOST}/shader_prep.m" "${HOST}/input.c" "${HOST}/vibration.c"
   "${HOST}/movie.c" "${HOST}/movie_video.c" "${HOST}/font_watch.c"
   "${HOST}/input_script.c" "${HOST}/gamepad.m" "${HOST}/performance.c"
