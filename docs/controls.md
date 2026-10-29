@@ -23,6 +23,8 @@ Xbox controllers connect automatically over Bluetooth or USB while the game wind
 
 Open it with ⌘, or **View → Controls**. Settings are saved to `work/settings.json` (override the path with `ZELDA_SETTINGS`).
 
+The game language follows the system's preferred languages (Traditional Chinese, Simplified Chinese, Japanese, Korean, English, French, German, Italian, Spanish, Dutch or Russian; otherwise US English). To pick another one, quit the game and add `"language"` to `work/settings.json` with one of `ja`, `en-US`, `en-GB`, `fr`, `fr-CA`, `de`, `it`, `es`, `es-419`, `nl`, `ru`, `ko`, `zh-Hans`, `zh-Hant`.
+
 | Setting | Values | Notes |
 | --- | --- | --- |
 | Frame rate | 30 / 60 / 90 FPS | Default 60. A target is not a guarantee; pre-rendered movies still play at 30 |

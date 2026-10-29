@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include "settings.h"
@@ -24,6 +25,19 @@ int main(int argc, char **argv) { @autoreleasepool {
             assert(zelda_settings_store(migrated));
             NSDictionary *saved = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0 error:nil];
             assert(!saved[@"dynamic_resolution"] && [saved[@"vibration"] isEqual:(migrated.vibration ? @"on" : @"off")]);
+            _exit(0);
+        }
+        int status; assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && !WEXITSTATUS(status));
+    }
+    // The language is resolved once per process: a shipped language wins, anything else follows the system.
+    const char *languages[] = {"ja", "zh-Hant", "klingon"};
+    for (unsigned i = 0; i < 3; i++) {
+        pid_t child = fork(); assert(child >= 0);
+        if (!child) {
+            assert([[NSJSONSerialization dataWithJSONObject:@{@"language": @(languages[i])} options:0 error:nil] writeToFile:path atomically:YES]);
+            const char *code = zelda_language();
+            assert(i < 2 ? !strcmp(code, languages[i]) : strlen(code) >= 2 && strcmp(code, "klingon"));
+            assert(zelda_language() == code);
             _exit(0);
         }
         int status; assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && !WEXITSTATUS(status));

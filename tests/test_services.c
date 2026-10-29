@@ -464,7 +464,7 @@ int main(void) {
     regs[0] = event2; assert(kernel_svc(0x16, regs) && !regs[0]);
     regs[0] = suspend; assert(kernel_svc(0x16, regs) && !regs[0]);
     domain(2, 20); assert(send(am) && !result && message[12] == 6);
-    domain(6, 21); assert(send(am) && !result && !memcmp(message + 12, "zh-Hans", 8));
+    domain(6, 21); assert(send(am) && !result && !memcmp(message + 12, "en-US\0\0", 8));   // zelda_language() from the stubs
     domain(6, 123); assert(send(am) && !result && message[12] == UINT32_MAX);
     domain(6, 40); assert(send(am) && !result && message[12] == 1);
     domain(6, 1); message[4] = 0x140001; message[1] = 11; message[12] = 2;

@@ -2,12 +2,16 @@
 #include "settings.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static zelda_settings_t current = {.target_fps = 60, .vibration = ZELDA_VIBRATION_ON};
 static NSArray<NSString *> *metalfx_names(void) { return @[@"off", @"window", @"4k"]; }
 static NSArray<NSString *> *vibration_names(void) { return @[@"off", @"on"]; }
 static NSArray<NSString *> *render_names(void) { return @[@"original", @"1080p", @"720p", @"640p"]; }
+static NSArray<NSString *> *language_codes(void) {
+    return @[@"ja", @"en-US", @"en-GB", @"fr", @"fr-CA", @"de", @"it", @"es", @"es-419", @"nl", @"ru", @"ko", @"zh-Hans", @"zh-Hant"];
+}
 static NSMutableDictionary *stored;   // Everything read from disk, so fields written by newer builds survive a save.
 static bool loaded;
 
@@ -55,6 +59,34 @@ static void load_locked(void) {
     else if ([render isEqual:@"performance"]) current.render = ZELDA_RENDER_720;
     else if ([render isEqual:@"480p"]) current.render = ZELDA_RENDER_640;
     else if (render) fprintf(stderr, "SETTINGS ignored render_resolution\n");
+}
+
+static NSString *system_language(void) {
+    for (NSString *preferred in NSLocale.preferredLanguages) {
+        NSLocale *locale = [NSLocale localeWithLocaleIdentifier:preferred];
+        NSString *language = [locale objectForKey:NSLocaleLanguageCode], *script = [locale objectForKey:NSLocaleScriptCode];
+        NSString *region = [locale objectForKey:NSLocaleCountryCode];
+        if ([language isEqual:@"zh"]) return [script isEqual:@"Hant"] || (!script && [@[@"TW", @"HK", @"MO"] containsObject:region]) ? @"zh-Hant" : @"zh-Hans";
+        if ([language isEqual:@"en"]) return [@[@"GB", @"IE", @"AU", @"NZ"] containsObject:region] ? @"en-GB" : @"en-US";
+        if ([language isEqual:@"fr"]) return [region isEqual:@"CA"] ? @"fr-CA" : @"fr";
+        if ([language isEqual:@"es"]) return !region || [region isEqual:@"ES"] ? @"es" : @"es-419";
+        if ([language_codes() containsObject:language]) return language;
+    }
+    return @"en-US";
+}
+
+const char *zelda_language(void) {
+    static char code[8];
+    @autoreleasepool {
+        pthread_mutex_lock(&lock); load_locked();
+        if (!code[0]) {
+            id chosen = stored[@"language"];
+            if (chosen && ![language_codes() containsObject:chosen]) { fprintf(stderr, "SETTINGS ignored language\n"); chosen = nil; }
+            strlcpy(code, [chosen ?: system_language() UTF8String], sizeof code);
+        }
+        pthread_mutex_unlock(&lock);
+    }
+    return code;
 }
 
 zelda_settings_t zelda_settings(void) {

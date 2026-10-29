@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "audio.h"
 #include "filesystem.h"
+#include "settings.h"
 #include <opus.h>
 #include "dm.h"
 #include <stdio.h>
@@ -842,8 +843,8 @@ static bool request(uint32_t handle, void *buffer, size_t size, uint32_t *result
     }
     if (!control && kind == APPLET && command == 0 && pid && copied && data_size >= 8) open_kind = APP_PROXY;
     if (!control && kind == APPLICATION && command == 21) {
-        // shortcut: use the reference host's Simplified Chinese default until a language setting exists.
-        const char language[8] = "zh-Hans";
+        char language[8] = {0};
+        strncpy(language, zelda_language(), sizeof language);
         if (reply(bytes, size, tipc, token, 0, domain, 0, language, sizeof language)) *result = 0;
         return true;
     }
