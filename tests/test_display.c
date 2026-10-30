@@ -55,6 +55,13 @@ int main(void) {
     assert(input_states(&pad, 1, 0, 1) == 1 && !pad.buttons && !pad.lx && pad.ly == 32767 && !pad.rx && !pad.ry);
     input_controller(8, 1, 1, 1, 1); input_clear();
     assert(input_states(&pad, 1, 0, 1) == 1 && !pad.buttons && !pad.lx && !pad.ly && !pad.rx && !pad.ry);
+    input_touch(1, 0, 0, .05f, 0); input_touch(0, 0, 0, .05f, 0);   // a tap is latched; small camera drags have no dead zone
+    assert(input_states(&pad, 1, 0, 1) == 1 && pad.buttons == 1 && !pad.lx && pad.rx == 1638);
+    input_touch(2, .5f, 0, 0, 0); input_controller(4, 0, 0, -1, 0);   // the sources combine; a hardware stick wins its side
+    assert(input_states(&pad, 1, 0, 1) == 1 && pad.buttons == 6 && pad.lx == 16384 && pad.rx == -32767);
+    input_controller_clear();
+    assert(input_states(&pad, 1, 0, 1) == 1 && pad.buttons == 2 && pad.lx == 16384 && !pad.rx);
+    input_clear(); assert(input_states(&pad, 1, 0, 1) == 1 && !pad.buttons && !pad.lx);
     ZeldaScriptStep step;
     assert(input_script_parse("tap x\n", &step) && step.kind == SCRIPT_TAP && step.key == 7 && step.ms == 100);
     assert(input_script_parse("  tap return 250", &step) && step.key == 36 && step.ms == 250);

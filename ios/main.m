@@ -2,7 +2,6 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 #import <AVFAudio/AVFAudio.h>
-#import <GameController/GameController.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <mach/mach.h>
 #include <os/proc.h>
@@ -11,7 +10,6 @@
 #include <unistd.h>
 #include "dm.h"
 #include "kernel.h"
-#include "input.h"
 #include "gamepad.h"
 #include "audio.h"
 #include "settings.h"
@@ -21,6 +19,8 @@
 #include "shader_prep.h"
 #include "dmsh_chain.h"
 #include "cloud_save.h"
+#include "touch_controls.h"
+#include "settings_sheet.h"
 
 extern int zelda_main(int, char **);
 extern void dm_gfx_suspend(int);
@@ -29,15 +29,15 @@ extern int zelda_runtime_shaders(const char *shaders, const char *library);   //
 static CAMetalLayer *metal_layer;
 static UILabel *status_label, *performance_label;
 static UIStackView *performance_panel;
-static UIButton *performance_toggle;
-static BOOL performance_expanded = YES;
+static UIButton *performance_toggle, *retry_button;
+static BOOL performance_expanded;
 static ZeldaCPUUsage cpu_usage;
 static BOOL launched, guest_running;
 static uint32_t vsync_write, vsync_read;
 static pthread_mutex_t vsync_mutex = PTHREAD_MUTEX_INITIALIZER;
 static void (*resource_report)(uint32_t, const char *);
 static NSString *documents;
-static GCVirtualController *touch_controller;
+static ZeldaTouchControls *touch_controls;
 static UIViewController<UIDocumentPickerDelegate> *controller;
 static NSURL *cloud_url;   // Security-scoped iCloud Drive folder, held for the app's lifetime.
 static BOOL cloud_checked;
@@ -81,21 +81,9 @@ void front_run(void (*guest)(void)) {
     fprintf(stderr, "SHADER_PREP end failed=%u seconds=%.3f\n", failed, CFAbsoluteTimeGetCurrent() - began);
     cloud_save_wait();
     dispatch_sync(dispatch_get_main_queue(), ^{
-        status_label.hidden = YES; guest_running = YES;
-        for (UIView *view in status_label.superview.subviews) if ([view isKindOfClass:UIButton.class]) {
-            view.hidden=view.tag==0;((UIButton *)view).enabled=view.tag!=0;
-        }
+        status_label.hidden = YES; retry_button.hidden = YES; guest_running = YES;
         gamepad_start(); gamepad_vibration_mode(zelda_settings().vibration);
-        if (!GCController.controllers.count) {
-            GCVirtualControllerConfiguration *config = [GCVirtualControllerConfiguration new];
-            config.elements = [NSSet setWithArray:@[GCInputLeftThumbstick, GCInputRightThumbstick,
-                GCInputButtonA, GCInputButtonB, GCInputButtonX, GCInputButtonY,
-                GCInputLeftShoulder, GCInputRightShoulder, GCInputLeftTrigger, GCInputRightTrigger]];
-            touch_controller = [[GCVirtualController alloc] initWithConfiguration:config];
-            [touch_controller connectWithReplyHandler:^(NSError *error) {
-                if (error) fprintf(stderr, "TOUCH controller failed code=%ld\n", (long)error.code);
-            }];
-        }
+        touch_controls.playing = YES;
     });
     guest();
 }
@@ -259,32 +247,38 @@ static void start_game(void) {
         [performance_panel.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
         [performance_panel.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:10],
         [performance_panel.widthAnchor constraintEqualToConstant:280]]];
-    NSArray *titles=@[@"Retry",@"−",@"+"];
-    for (unsigned i=0;i<titles.count;i++) {
-        UIButton *button=[UIButton buttonWithType:UIButtonTypeSystem]; [button setTitle:titles[i] forState:UIControlStateNormal];
-        button.tag=i;button.backgroundColor=[UIColor.blackColor colorWithAlphaComponent:.65];button.translatesAutoresizingMaskIntoConstraints=NO;
-        button.enabled=i==0;
-        [button addTarget:self action:@selector(press:) forControlEvents:UIControlEventTouchDown];
-        [button addTarget:self action:@selector(release:) forControlEvents:UIControlEventTouchUpInside|UIControlEventTouchUpOutside|UIControlEventTouchCancel];
-        [self.view addSubview:button];
-        [NSLayoutConstraint activateConstraints:@[[button.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
-            [button.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-12.0-70.0*i],
-            [button.widthAnchor constraintEqualToConstant:60],[button.heightAnchor constraintEqualToConstant:40]]];
-    }
+    retry_button=[UIButton buttonWithType:UIButtonTypeSystem]; [retry_button setTitle:@"Retry" forState:UIControlStateNormal];
+    retry_button.backgroundColor=[UIColor.blackColor colorWithAlphaComponent:.65];retry_button.translatesAutoresizingMaskIntoConstraints=NO;
+    [retry_button addTarget:self action:@selector(retry:) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:retry_button];
+    [NSLayoutConstraint activateConstraints:@[[retry_button.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
+        [retry_button.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-12],
+        [retry_button.widthAnchor constraintEqualToConstant:60],[retry_button.heightAnchor constraintEqualToConstant:40]]];
+    __weak ZeldaController *weakController=self;
+    touch_controls=[[ZeldaTouchControls alloc] initWithMenu:^{ [weakController showSettings]; }];
+    touch_controls.frame=self.view.bounds;touch_controls.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+    [self.view insertSubview:touch_controls belowSubview:performance_panel];
     self.displayLink=[CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
     self.displayLink.preferredFrameRateRange=CAFrameRateRangeMake(60,60,60);
     [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     __weak ZeldaController *weakSelf=self;
     self.monitor=[NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(NSTimer *timer){(void)timer;[weakSelf updatePerformance];}];
-    [NSNotificationCenter.defaultCenter addObserverForName:GCControllerDidConnectNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note){
-        if (touch_controller && note.object != touch_controller.controller) { [touch_controller disconnect];touch_controller=nil; }
-    }];
 }
 - (void)viewDidAppear:(BOOL)animated { [super viewDidAppear:animated];start_game(); }
 - (BOOL)prefersStatusBarHidden { return YES; }
 - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
-- (void)press:(UIButton *)button { if (!button.tag) start_game();else input_key(button.tag==1?48:36,1); }
-- (void)release:(UIButton *)button { if (button.tag) input_key(button.tag==1?48:36,0); }
+- (void)retry:(UIButton *)button { (void)button; start_game(); }
+- (void)showSettings {
+    __weak ZeldaController *weakSelf=self;
+    [self presentViewController:zelda_settings_sheet(^{ [touch_controls reloadPreferences];[weakSelf updatePerformance]; }) animated:YES completion:nil];
+}
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    // A half turn keeps the size but moves the camera cutout to the other side.
+    [coordinator animateAlongsideTransition:nil completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        (void)context; [touch_controls setNeedsLayout];
+    }];
+}
 - (void)documentPicker:(UIDocumentPickerViewController *)picker didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     (void)picker; NSURL *url = urls.firstObject;
     if ([url startAccessingSecurityScopedResource]) {

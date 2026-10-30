@@ -43,6 +43,19 @@ Until the game can draw without stalling, a startup screen covers the window wit
 
 The overlay (⌘P) shows FPS and target, render size, CPU, GPU time and memory. Its top-right corner shows the shader warm-up state: `Checking shaders`, `Shaders N%`, `Pipelines N%`, `Warming up` while the total is not yet known, and `Compiling shaders` when a new library or pipeline is created during play. The percentage refers to the current stage only.
 
-## iPad
+## iPhone and iPad
 
-Without a hardware controller, the system touch controller is shown; + and − at the top open the matching menus. The overlay shows FPS and target, render size, app CPU, GPU time and physical memory; tap its top edge to collapse it. Auto-lock is suspended while the game is in front. Settings live in the app's `Documents/work/settings.json`, separate from the Mac; there is no full settings panel on iOS yet.
+Without a hardware controller, touch controls are shown:
+
+| Area | Controls |
+| --- | --- |
+| Left half of the screen | Movement stick: it appears where the thumb lands and follows it past the rim |
+| Right half of the screen | Camera: drag to turn |
+| Left side (the black bar on iPhone) | −, ZL, L, L3 (press the left stick) from top to bottom |
+| Right side | +, ZR, R, R3 (press the right stick) |
+| Lower right | A B X Y in Switch positions (A on the right); a thumb can roll from one to the next |
+| Middle left | D-pad |
+
+The gear key in the middle of the side away from the camera cutout opens the settings: touch control opacity and size, camera speed, inverted camera up/down, face buttons in Switch or Xbox positions, frame rate (30 or 60), render resolution, sound and the performance panel. Changes apply at once. Touch preferences stay on the device; the others are saved in the app's `Documents/work/settings.json`, separate from the Mac. While a hardware controller is connected only the gear key remains.
+
+The performance panel shows FPS and target; tap it to expand render size, app CPU, GPU time and physical memory. Auto-lock is suspended while the game is in front.

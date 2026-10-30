@@ -8,8 +8,9 @@
 _Static_assert(sizeof(ZeldaPadState) == 0x28, "SDK Npad state ABI");
 static pthread_mutex_t input_lock = PTHREAD_MUTEX_INITIALIZER;
 static uint64_t sampling, latched_buttons;
-static uint64_t controller_buttons, controller_latched;
-static int32_t controller_axes[4];
+// The hardware controller and the iOS touch overlay are separate sources, so one never releases the other's input.
+typedef struct { uint64_t buttons, latched; int32_t axes[4]; } source_t;
+static source_t controller, touch;
 static unsigned char keys[128];
 static uint32_t styles = 1, player_enabled = 1;
 static const struct { unsigned key; uint64_t button; } mapping[] = {
@@ -28,41 +29,46 @@ void input_key(unsigned code, int pressed) {
 }
 void input_clear(void) {
     pthread_mutex_lock(&input_lock); memset(keys, 0, sizeof keys); latched_buttons = 0;
-    controller_buttons = controller_latched = 0; memset(controller_axes, 0, sizeof controller_axes);
+    controller = touch = (source_t){0};
     pthread_mutex_unlock(&input_lock);
 }
 void input_controller_clear(void) {
-    pthread_mutex_lock(&input_lock);
-    controller_buttons = controller_latched = 0; memset(controller_axes, 0, sizeof controller_axes);
-    pthread_mutex_unlock(&input_lock);
+    pthread_mutex_lock(&input_lock); controller = (source_t){0}; pthread_mutex_unlock(&input_lock);
 }
-void input_controller(uint64_t buttons, float lx, float ly, float rx, float ry) {
+static void source_set(source_t *source, float dead_zone, uint64_t buttons, float lx, float ly, float rx, float ry) {
     float axes[4] = {lx, ly, rx, ry};
     pthread_mutex_lock(&input_lock);
     buttons &= 0xffff;
-    controller_latched |= buttons & ~controller_buttons; controller_buttons = buttons;
+    source->latched |= buttons & ~source->buttons; source->buttons = buttons;
     for (unsigned s = 0; s < 2; s++) {
         float x = axes[s * 2], y = axes[s * 2 + 1];
-        if (!isfinite(x) || !isfinite(y) || hypotf(x, y) < .12f) x = y = 0;
-        controller_axes[s * 2] = (int32_t)lroundf(fmaxf(-1, fminf(1, x)) * 32767);
-        controller_axes[s * 2 + 1] = (int32_t)lroundf(fmaxf(-1, fminf(1, y)) * 32767);
+        if (!isfinite(x) || !isfinite(y) || hypotf(x, y) < dead_zone) x = y = 0;
+        source->axes[s * 2] = (int32_t)lroundf(fmaxf(-1, fminf(1, x)) * 32767);
+        source->axes[s * 2 + 1] = (int32_t)lroundf(fmaxf(-1, fminf(1, y)) * 32767);
     }
     pthread_mutex_unlock(&input_lock);
+}
+void input_controller(uint64_t buttons, float lx, float ly, float rx, float ry) { source_set(&controller, .12f, buttons, lx, ly, rx, ry); }
+// The overlay applies its own dead zone; small camera drags must still reach the game.
+void input_touch(uint64_t buttons, float lx, float ly, float rx, float ry) { source_set(&touch, 0, buttons, lx, ly, rx, ry); }
+static void source_axes(const source_t *source, ZeldaPadState *out) {
+    if (source->axes[0] || source->axes[1]) { out->lx = source->axes[0]; out->ly = source->axes[1]; }
+    if (source->axes[2] || source->axes[3]) { out->rx = source->axes[2]; out->ry = source->axes[3]; }
 }
 int input_states(ZeldaPadState *out, int count, uint32_t id, uint32_t style) {
     if (!out || count <= 0) return 0;
     pthread_mutex_lock(&input_lock);
     *out = (ZeldaPadState){.sampling = ++sampling};
     if (id == 0 && player_enabled && (styles & style & 1)) {
-        out->buttons = latched_buttons | controller_buttons | controller_latched;
-        latched_buttons = controller_latched = 0;
+        out->buttons = latched_buttons | controller.buttons | controller.latched | touch.buttons | touch.latched;
+        latched_buttons = controller.latched = touch.latched = 0;
         for (unsigned i = 0; i < sizeof mapping / sizeof *mapping; i++) if (keys[mapping[i].key]) out->buttons |= mapping[i].button;
         // WASD move; IJKL control the camera, leaving face buttons separate. A deflected stick wins over held keys for
-        // its side, so keys held by an input script (or by someone else at the keyboard) never take it from the player.
+        // its side, so keys held by an input script (or by someone else at the keyboard) never take it from the player;
+        // a hardware stick also wins over the touch overlay.
         out->lx = (keys[2] - keys[0]) * 32767; out->ly = (keys[13] - keys[1]) * 32767;
         out->rx = (keys[37] - keys[38]) * 32767; out->ry = (keys[34] - keys[40]) * 32767;
-        if (controller_axes[0] || controller_axes[1]) { out->lx = controller_axes[0]; out->ly = controller_axes[1]; }
-        if (controller_axes[2] || controller_axes[3]) { out->rx = controller_axes[2]; out->ry = controller_axes[3]; }
+        source_axes(&touch, out); source_axes(&controller, out);
         out->attributes = 3; // Connected and wired.
     }
     pthread_mutex_unlock(&input_lock);

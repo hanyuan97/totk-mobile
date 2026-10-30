@@ -12,7 +12,7 @@ set(IOS_WORK "${ROOT}/work/ios")
 set(VPX "${IOS_WORK}/deps/install")
 set(ZELDA_IOS_BUNDLE "local.zelda-mobile.ios" CACHE STRING "Development bundle identifier")
 add_executable(ZeldaMobile MACOSX_BUNDLE
-  main.m "${IOS_WORK}/embed.S"
+  main.m touch_controls.m settings_sheet.m "${IOS_WORK}/embed.S"
   "${HOST}/probe.c" "${HOST}/codec.c" "${HOST}/kernel.c" "${HOST}/threads.c"
   "${HOST}/timeline.c" "${HOST}/trace_writer.c" "${HOST}/services.c"
   "${HOST}/audio.c" "${HOST}/audio_mixer.c" "${HOST}/filesystem.c" "${HOST}/cloud_save.m"
