@@ -25,6 +25,7 @@
 extern int zelda_main(int, char **);
 extern void dm_gfx_suspend(int);
 extern void mtl_present_discard(int);
+extern int zelda_runtime_shaders(const char *shaders, const char *library);   // ios/shaders/RuntimeShaders.cs
 static CAMetalLayer *metal_layer;
 static UILabel *status_label, *performance_label;
 static UIStackView *performance_panel;
@@ -413,6 +414,11 @@ static void cloud_offer(void) {
     NSDictionary *disk=[NSFileManager.defaultManager attributesOfFileSystemForPath:documents error:nil];
     fprintf(stderr,"IOS_STORAGE free_gib=%.3f\n",[disk[NSFileSystemFreeSize] unsignedLongLongValue]/1073741824.0);
     setenv("TZ",NSTimeZone.localTimeZone.name.UTF8String,1);tzset();
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--prepare-shaders"]) {
+        // Device check of the shader compiler: prepares pending requests as a missing shader would, then stops.
+        int result=zelda_runtime_shaders("work/shaders","work/shaders/b-" DMSH_CHAIN);
+        fprintf(stderr,"IOS_SHADER_PREP returned=%d\n",result);exit(result);
+    }
     if ([NSProcessInfo.processInfo.arguments containsObject:@"--cloud-setup"]) {
         [NSUserDefaults.standardUserDefaults removeObjectForKey:cloud_bookmark_key];
         [NSUserDefaults.standardUserDefaults removeObjectForKey:cloud_off_key];
