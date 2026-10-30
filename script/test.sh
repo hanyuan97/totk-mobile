@@ -145,7 +145,7 @@ clang -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined tests/test_audio
 work/tmp/test_audio
 clang -Wall -Wextra -Werror -Wno-deprecated-declarations -fobjc-arc -fsanitize=address,undefined \
     -ivfsoverlay work/build/graphics-overlay.json -I "$PWD/core/gfx/nvn" \
-    -I "$PWD/core/host" tests/test_display.c tests/runtime_stubs.c host/trace_writer.c host/graphics.m host/shader_prep.m host/input.c host/vibration.c host/input_script.c host/timeline.c host/gamepad.m host/performance.c host/game_timing.c host/settings.m host/kernel.c host/threads.c \
+    -I "$PWD/core/host" tests/test_display.c tests/runtime_stubs.c host/trace_writer.c host/graphics.m host/cloud_save.m host/filesystem.c host/shader_prep.m host/input.c host/vibration.c host/input_script.c host/timeline.c host/gamepad.m host/performance.c host/game_timing.c host/settings.m host/kernel.c host/threads.c \
     -framework Cocoa -framework QuartzCore -framework CoreVideo -framework Metal -framework GameController -framework CoreHaptics -o work/tmp/test_display
 work/tmp/test_display
 clang -Wall -Wextra -Werror -fobjc-arc -fsanitize=address,undefined -I host tests/test_settings.m host/settings.m -framework Foundation -o work/tmp/test_settings
