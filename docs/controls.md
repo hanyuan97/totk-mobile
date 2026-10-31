@@ -49,13 +49,13 @@ Without a hardware controller, touch controls are shown:
 
 | Area | Controls |
 | --- | --- |
-| Left half of the screen | Movement stick: it appears where the thumb lands and follows it past the rim |
-| Right half of the screen | Camera: drag to turn |
+| Lower left, around the stick | Movement stick: it appears where the thumb lands and follows it past the rim, within a circle about twice its size |
+| Right half of the screen | Camera: drag to turn; hold the thumb away from where the drag began to keep turning |
 | Left side (the black bar on iPhone) | −, ZL, L, L3 (press the left stick) from top to bottom |
 | Right side | +, ZR, R, R3 (press the right stick) |
 | Lower right | A B X Y in Switch positions (A on the right); a thumb can roll from one to the next |
 | Middle left | D-pad |
 
-The gear key in the middle of the side away from the camera cutout opens the settings: touch control opacity and size, camera speed, inverted camera up/down, face buttons in Switch or Xbox positions, frame rate (30 or 60), render resolution, sound and the performance panel. Changes apply at once. Touch preferences stay on the device; the others are saved in the app's `Documents/work/settings.json`, separate from the Mac. While a hardware controller is connected only the gear key remains.
+The gear key in the middle of the side away from the camera cutout opens the settings: touch control opacity and size, camera speed, hold to keep turning, inverted camera up/down, face buttons in Switch or Xbox positions, frame rate (30 or 60), render resolution, sound and the performance panel. Changes apply at once. Touch preferences stay on the device; the others are saved in the app's `Documents/work/settings.json`, separate from the Mac. While a hardware controller is connected only the gear key remains.
 
 The performance panel shows FPS and target; tap it to expand render size, app CPU, GPU time and physical memory. Auto-lock is suspended while the game is in front.

@@ -48,6 +48,7 @@ static void store_touch(void (^change)(ZeldaTouchPreferences *preferences)) {
     [self slider:@"Opacity" value:touch.opacity low:.15 high:1 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->opacity = value; }); }];
     [self slider:@"Size" value:touch.size low:.75 high:1.35 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->size = value; }); }];
     [self slider:@"Camera speed" value:touch.look low:.3 high:3 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->look = value; }); }];
+    [self toggle:@"Hold to keep turning" on:touch.look_hold change:^(BOOL on) { store_touch(^(ZeldaTouchPreferences *p) { p->look_hold = on; }); }];
     [self toggle:@"Invert camera up/down" on:touch.invert_y change:^(BOOL on) { store_touch(^(ZeldaTouchPreferences *p) { p->invert_y = on; }); }];
     [self choice:@"Face buttons" items:@[@"Switch", @"Xbox"] selected:touch.xbox_face change:^(NSInteger index) {
         store_touch(^(ZeldaTouchPreferences *p) { p->xbox_face = index == 1; });

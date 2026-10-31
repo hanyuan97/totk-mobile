@@ -5,23 +5,24 @@
 #include <math.h>
 
 static NSString *const opacity_key = @"ZeldaTouchOpacity", *const size_key = @"ZeldaTouchSize",
-    *const look_key = @"ZeldaTouchLook", *const invert_key = @"ZeldaTouchInvertY", *const xbox_key = @"ZeldaTouchXboxFace";
+    *const look_key = @"ZeldaTouchLook", *const invert_key = @"ZeldaTouchInvertY", *const xbox_key = @"ZeldaTouchXboxFace",
+    *const hold_key = @"ZeldaTouchLookHold";
 
 static float bounded(float value, float low, float high, float fallback) {
     return isfinite(value) && value >= low && value <= high ? value : fallback;
 }
 ZeldaTouchPreferences zelda_touch_preferences(void) {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    [defaults registerDefaults:@{opacity_key: @.5, size_key: @1, look_key: @1, invert_key: @NO, xbox_key: @NO}];
+    [defaults registerDefaults:@{opacity_key: @.5, size_key: @1, look_key: @1, invert_key: @NO, xbox_key: @NO, hold_key: @YES}];
     return (ZeldaTouchPreferences){bounded([defaults floatForKey:opacity_key], .15f, 1, .5f),
         bounded([defaults floatForKey:size_key], .75f, 1.35f, 1), bounded([defaults floatForKey:look_key], .3f, 3, 1),
-        [defaults boolForKey:invert_key], [defaults boolForKey:xbox_key]};
+        [defaults boolForKey:invert_key], [defaults boolForKey:hold_key], [defaults boolForKey:xbox_key]};
 }
 void zelda_touch_store(ZeldaTouchPreferences preferences) {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults setFloat:preferences.opacity forKey:opacity_key]; [defaults setFloat:preferences.size forKey:size_key];
     [defaults setFloat:preferences.look forKey:look_key]; [defaults setBool:preferences.invert_y forKey:invert_key];
-    [defaults setBool:preferences.xbox_face forKey:xbox_key];
+    [defaults setBool:preferences.xbox_face forKey:xbox_key]; [defaults setBool:preferences.look_hold forKey:hold_key];
 }
 
 // One drawn key. The overlay does its own hit testing, so several fingers can hold and slide between keys at once.
@@ -76,7 +77,8 @@ typedef enum { TRACK_KEY, TRACK_DPAD, TRACK_MOVE, TRACK_LOOK } ZeldaTrackRole;
     ZeldaTouchKey *face[4], *left[4], *right[4], *menu_key;   // face: A, B, X, Y; sides: top to bottom
     NSArray<ZeldaTouchKey *> *keys, *arms;   // arms: the D-pad's up, down, left, right
     CGPoint dpad_center, stick_home;
-    CGFloat dpad_arm, stick_radius;
+    CGFloat dpad_arm, stick_radius, look_dead, look_reach;
+    CGFloat move_reach;
     UIView *stick_base, *stick_knob;
     NSMapTable<UITouch *, ZeldaTouchTrack *> *tracks;
     CADisplayLink *link;
@@ -185,8 +187,10 @@ static void place(UIView *view, CGFloat x, CGFloat y, CGFloat side) {
     for (int i = 0; i < 4; i++)
         place(arms[i], dpad_center.x + arm_offsets[i].x * dpad_arm, dpad_center.y + arm_offsets[i].y * dpad_arm, dpad_arm * .95);
 
-    stick_radius = 56 * s;
+    // The movement stick starts anywhere within `move_reach` of its resting place and its centre stays in that circle.
+    stick_radius = 56 * s; move_reach = stick_radius * 2;
     stick_home = CGPointMake(edge + stick_radius + 28, bottom - stick_radius - 16);
+    look_dead = 36 * s; look_reach = 110 * s;
     place(stick_base, stick_home.x, stick_home.y, stick_radius * 2);
     place(stick_knob, stick_home.x, stick_home.y, stick_radius * .9);
     stick_base.layer.cornerRadius = stick_radius; stick_knob.layer.cornerRadius = stick_radius * .45;
@@ -206,6 +210,18 @@ static void place(UIView *view, CGFloat x, CGFloat y, CGFloat side) {
     CGFloat x = point.x - dpad_center.x, y = point.y - dpad_center.y, dead = dpad_arm * .45;
     return (x < -dead ? DM_BTN_LEFT : 0) | (x > dead ? DM_BTN_RIGHT : 0) | (y < -dead ? DM_BTN_UP : 0) | (y > dead ? DM_BTN_DOWN : 0);
 }
+- (CGPoint)stickCentre:(CGPoint)point {
+    CGFloat x = point.x - stick_home.x, y = point.y - stick_home.y, distance = hypot(x, y);
+    if (distance <= move_reach) return point;
+    return CGPointMake(stick_home.x + x * move_reach / distance, stick_home.y + y * move_reach / distance);
+}
+// Past `reach` the anchor is dragged along, so turning back slows the camera at once instead of after unwinding.
+static CGPoint follow(CGPoint origin, CGPoint point, CGFloat reach) {
+    CGFloat x = point.x - origin.x, y = point.y - origin.y, distance = hypot(x, y);
+    if (distance <= reach) return origin;
+    CGFloat pull = (distance - reach) / distance;
+    return CGPointMake(origin.x + x * pull, origin.y + y * pull);
+}
 - (ZeldaTouchTrack *)trackWithRole:(ZeldaTrackRole)role {
     for (ZeldaTouchTrack *track in tracks.objectEnumerator) if (track.role == role) return track;
     return nil;
@@ -222,7 +238,7 @@ static void place(UIView *view, CGFloat x, CGFloat y, CGFloat side) {
         else if (controller) continue;
         else if (fabs(point.x - dpad_center.x) <= reach && fabs(point.y - dpad_center.y) <= reach) track.role = TRACK_DPAD;
         else if (point.x < self.bounds.size.width / 2) {
-            if ([self trackWithRole:TRACK_MOVE]) continue;
+            if (hypot(point.x - stick_home.x, point.y - stick_home.y) > move_reach || [self trackWithRole:TRACK_MOVE]) continue;
             track.role = TRACK_MOVE;
         } else {
             if ([self trackWithRole:TRACK_LOOK]) continue;
@@ -241,14 +257,11 @@ static void place(UIView *view, CGFloat x, CGFloat y, CGFloat side) {
         if (track.role == TRACK_KEY && track.key.face) {   // a thumb can roll from one face button to the next
             ZeldaTouchKey *key = [self keyAt:point faceOnly:YES];
             if (key) track.key = key;
-        } else if (track.role == TRACK_MOVE) {   // past the rim the stick follows the thumb
-            CGFloat x = point.x - track.origin.x, y = point.y - track.origin.y, distance = hypot(x, y);
-            if (distance > stick_radius) {
-                CGFloat pull = (distance - stick_radius) / distance;
-                track.origin = CGPointMake(track.origin.x + x * pull, track.origin.y + y * pull);
-            }
+        } else if (track.role == TRACK_MOVE) {   // past the rim the stick follows the thumb, within its circle
+            track.origin = [self stickCentre:follow(track.origin, point, stick_radius)];
         } else if (track.role == TRACK_LOOK) {
             look_delta.x += point.x - track.last.x; look_delta.y += point.y - track.last.y;
+            track.origin = follow(track.origin, point, look_reach);
         }
         track.last = point;
     }
@@ -269,15 +282,26 @@ static void place(UIView *view, CGFloat x, CGFloat y, CGFloat side) {
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event { (void)event; [self finish:touches cancelled:YES]; }
 
 // The camera stick follows the drag speed, smoothed over two frames; the square root lifts slow drags past the game's
-// own stick dead zone so small corrections still turn the camera.
+// own stick dead zone so small corrections still turn the camera. A thumb held away from where the drag began adds a
+// steady turn that grows with the distance, so a long turn needs no repeated swipes.
 - (void)tick:(CADisplayLink *)sender {
     (void)sender;
-    BOOL looking = [self trackWithRole:TRACK_LOOK] != nil;
+    ZeldaTouchTrack *looking = [self trackWithRole:TRACK_LOOK];
     look_velocity = looking ? CGPointMake((look_velocity.x + look_delta.x) / 2, (look_velocity.y + look_delta.y) / 2) : CGPointZero;
     look_delta = CGPointZero;
-    CGFloat gain = preferences.look / 10, x = look_velocity.x * gain, y = -look_velocity.y * gain * (preferences.invert_y ? -1 : 1);
+    CGFloat flip = preferences.invert_y ? -1 : 1;
+    CGFloat gain = preferences.look / 10, x = look_velocity.x * gain, y = -look_velocity.y * gain * flip;
     CGFloat magnitude = hypot(x, y);
     if (magnitude > 0) { CGFloat lift = MIN(1, sqrt(magnitude)) / magnitude; x *= lift; y *= lift; }
+    if (looking && preferences.look_hold) {
+        CGFloat hx = looking.last.x - looking.origin.x, hy = looking.last.y - looking.origin.y, distance = hypot(hx, hy);
+        if (distance > look_dead) {
+            CGFloat hold = MIN(1, .2 + .8 * (distance - look_dead) / (look_reach - look_dead)) * MIN(1, preferences.look) / distance;
+            x += hx * hold; y -= hy * hold * flip;
+            magnitude = hypot(x, y);
+            if (magnitude > 1) { x /= magnitude; y /= magnitude; }
+        }
+    }
     if (x == look.x && y == look.y) return;
     look = CGPointMake(x, y); [self publish];
 }
