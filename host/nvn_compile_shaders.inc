@@ -1,8 +1,15 @@
 #include <TargetConditionals.h>
+#include <pthread.h>
 #if TARGET_OS_IPHONE
 int zelda_runtime_shaders(const char *shaders, const char *library);   // ios/shaders/RuntimeShaders.cs
 #endif
+static void zelda_compile_shaders_locked(void);
+// The submit thread (waiting mode) and the background variant compiler (nvn_shader_async.inc) never run at once.
 static void zelda_compile_shaders(void) {
+    static pthread_mutex_t running = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&running); zelda_compile_shaders_locked(); pthread_mutex_unlock(&running);
+}
+static void zelda_compile_shaders_locked(void) {
 #if TARGET_OS_IPHONE
     // The translator, SPIRV-Cross and the library checks run in process with the chain the libraries were prepared with.
     MLOG("Preparing captured shaders on the device");
