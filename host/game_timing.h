@@ -18,4 +18,5 @@ float zelda_render_scale_factor(int mode);   // ZELDA_RENDER_* -> factor (ORIGIN
 float zelda_render_scale(void);
 // Provided by the graphics backend: MetalFX spatial upscale of the presented image (0 off).
 int zelda_present_metalfx_mode(void);
+double zelda_native_scale_running(void);   // the render-target scale this process uses (nvn_native_scale.inc)
 void zelda_present_metalfx(int mode);   // ZELDA_METALFX_*: off, to the window, to 3840x2160

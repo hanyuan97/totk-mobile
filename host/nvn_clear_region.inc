@@ -2,6 +2,7 @@ static void zelda_clear_region(MTLRenderPassAttachmentDescriptor *attachment, p_
     id<MTLTexture> target = attachment.texture;
     if (!target || target.sampleCount != 1) MDIE("Partial clear requires a single-sample target");
     int64_t width = MAX(target.width >> attachment.level, 1), height = MAX(target.height >> attachment.level, 1);
+    scissor = zelda_scale_scissor(scissor, zelda_texture_scale_of(target));
     int64_t x = MAX(scissor.x, 0), y = MAX(scissor.y, 0);
     int64_t end_x = MIN((int64_t)scissor.x + scissor.w, width), end_y = MIN((int64_t)scissor.y + scissor.h, height);
     if (end_x <= x || end_y <= y) return;

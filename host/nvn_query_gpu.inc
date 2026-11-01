@@ -219,8 +219,9 @@ static int zelda_gpu_conditional_clear(const p_clear_color *clear) {
     if (partial) gpu = dummy_buf_gpu();
     else if (!mtl_gpu_addr(z_render.address, 32, &query, &offset, &gpu)) MDIE("Conditional clear outside memory pool");
     int64_t width = MAX(target.width >> attachment.level, 1), height = MAX(target.height >> attachment.level, 1);
-    int64_t x = MAX(R.sc.x, 0), y = MAX(R.sc.y, 0);
-    int64_t right = MIN((int64_t)R.sc.x + R.sc.w, width), bottom = MIN((int64_t)R.sc.y + R.sc.h, height);
+    p_scissor sc = zelda_scale_scissor(R.sc, zelda_texture_scale_of(target));
+    int64_t x = MAX(sc.x, 0), y = MAX(sc.y, 0);
+    int64_t right = MIN((int64_t)sc.x + sc.w, width), bottom = MIN((int64_t)sc.y + sc.h, height);
     if (right <= x || bottom <= y) return 1;
     zelda_color_clear_t c = {.index = clear->index, .mode = partial ? 0 : z_render.mode, .predicate = z_render.address, .query = gpu,
         .x = (long)x, .y = (long)y, .right = (long)right, .bottom = (long)bottom, .width = (long)width, .height = (long)height};

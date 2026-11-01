@@ -861,7 +861,7 @@ static void zelda_fsc_after_pass(void) {
 // Runs a draw that would open a render pass of its own as the two kernels in the copy/compute encoder. Returns 1 when
 // the draw is done, 0 to render it.
 static int zelda_fsc_draw(NvProg *pr, const p_draw *dw, const p_draw_idx *di) {
-    if (!zelda_fsc_enabled() || g_enc || !pr) return 0;
+    if (!zelda_fsc_enabled() || g_enc || !pr || z_native_scale > 1) return 0;   // kernels assume guest-sized targets
     zelda_fsc_log();
     zelda_fsc_check_collect();
     NvShader *vs = pr->sh[0], *fs = pr->sh[1];

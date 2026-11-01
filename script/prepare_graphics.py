@@ -340,7 +340,7 @@ def adapt_backend(source):
     MLOG("Upload texture reuse through frame %llu: hits=%llu retained=%llu KiB / 16384 KiB", frame,
         (unsigned long long)z_texture_reuse_hits, (unsigned long long)(z_texture_reuse_bytes >> 10));''',
         'static id<MTLTexture> tex_mtl(const tex_t *ct) {':
-        '#include "nvn_small_texture.inc"\n#include "nvn_texture_alias.inc"\n#include "nvn_texture_rendered.inc"\nstatic id<MTLTexture> tex_mtl(const tex_t *ct) {',
+        '#include "nvn_small_texture.inc"\n#include "nvn_native_scale.inc"\n#include "nvn_texture_alias.inc"\n#include "nvn_texture_rendered.inc"\nstatic id<MTLTexture> tex_mtl(const tex_t *ct) {',
         'static inline __attribute__((always_inline)) void *tex_fast(int tid) {':
         '#include "nvn_texture_lookup.inc"\nstatic inline __attribute__((always_inline)) void *tex_fast(int tid) {',
         '    return (__bridge void *)tex_by_id(tid);':
@@ -619,7 +619,7 @@ static inline void m4_end(id e) {
         '    if (nvn_refl_from_json(j, &o->rf, err, sizeof err))':
         '    if (zelda_refl_from_json(j, &o->rf, err, sizeof err))',
         'static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) {':
-        '#define ZELDA_POINTER_STORAGE_BIND 1\n#include "nvn_pointer_storage.inc"\nstatic int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) {',
+        '#define ZELDA_POINTER_STORAGE_BIND 1\n#include "nvn_pointer_storage.inc"\n#include "nvn_resample.inc"\n#include "nvn_native_scale_pass.inc"\nstatic int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) {',
         '        } else if (b->kind == NVN_RB_C1) {':
         '''        } else if (b->kind == ZELDA_RB_SBUF_CB) {
             void *mb = NULL; uint64_t gpu = zelda_pointer_storage(nvn_stage, b, sh->key, &mb);
@@ -1067,6 +1067,43 @@ static void bind_args(id<MTLCommandEncoder> en, int nvn_stage, int metal_vertex,
         'static MTLTextureUsage zelda_fsc_usage(MTLTextureDescriptor *d, int not_renderable);\nstatic MTLTextureDescriptor *tex_desc(const tex_t *t, int packaged) {',
         '            | (t->d.flags & NVN_TEXTURE_FLAGS_IMAGE ? MTLTextureUsageShaderWrite : 0)':
         '            | (t->d.flags & NVN_TEXTURE_FLAGS_IMAGE ? MTLTextureUsageShaderWrite : 0) | zelda_fsc_usage(d, fmt_compressed(t->d.format) || packaged)',
+        # Native-resolution rendering, ZELDA_NATIVE_SCALE (nvn_native_scale.inc, nvn_native_scale_pass.inc).
+        'static RENC rp_begin_ex(int clear_only);\nstatic RENC rp_begin(void) { return rp_begin_ex(0); }':
+        'static void zelda_pass_scale(RPD *pd, int n);\nstatic RENC rp_begin_ex(int clear_only);\nstatic RENC rp_begin(void) { return rp_begin_ex(0); }',
+        '        pass_dims(pd, (NSUInteger)R.rt.n, &g_pass.tw, &g_pass.th);':
+        '        pass_dims(pd, (NSUInteger)R.rt.n, &g_pass.tw, &g_pass.th);\n        zelda_pass_scale(pd, R.rt.n);',
+        '    if (S.has_vp) enc_r_viewport(en, (MTLViewport){S.vp[0][0], S.vp[0][1] + vo, S.vp[0][2], S.vp[0][3] * vs, S.dr[0], S.dr[1]});':
+        '    double zs = z_pass_scale;\n    if (S.has_vp) enc_r_viewport(en, (MTLViewport){S.vp[0][0] * zs, S.vp[0][1] * zs + vo, S.vp[0][2] * zs, S.vp[0][3] * zs * vs, S.dr[0], S.dr[1]});',
+        '        long x0 = R.sc.x < 0 ? 0 : R.sc.x, y0 = R.sc.y <= 0 ? 0 : R.sc.y + so, x1 = (long)R.sc.x + R.sc.w, y1 = vs != 1 ? (long)th : (long)R.sc.y + R.sc.h + so;':
+        '        p_scissor zsc = zelda_scale_scissor(R.sc, zs);\n        long x0 = zsc.x < 0 ? 0 : zsc.x, y0 = zsc.y <= 0 ? 0 : zsc.y + so, x1 = (long)zsc.x + zsc.w, y1 = vs != 1 ? (long)th : (long)zsc.y + zsc.h + so;',
+        '            slots[aid] = support_gpu();\n            USE(support_buf(), MTLResourceUsageRead);':
+        '            id<MTLBuffer> z_sb = nil; uint64_t z_support = zelda_support_scaled(sh, nvn_stage, &z_sb);\n            slots[aid] = z_support ? z_support : support_gpu();\n            USE(z_sb ? z_sb : support_buf(), MTLResourceUsageRead);',
+        '        cx = crop[0]; cy = crop[1]; cw = crop[2]; ch = crop[3];\n    }\n    static uint64_t last_crop[8];':
+        '        cx = crop[0]; cy = crop[1]; cw = crop[2]; ch = crop[3];\n        zelda_present_crop_scale(src, &cx, &cy, &cw, &ch);\n    }\n    static uint64_t last_crop[8];',
+        '        cx = crop[0]; cy = crop[1]; cw = crop[2]; ch = crop[3];\n    }\n    present_pipeline(dst.pixelFormat);\n    double dw':
+        '        cx = crop[0]; cy = crop[1]; cw = crop[2]; ch = crop[3];\n        zelda_present_crop_scale(src, &cx, &cy, &cw, &ch);\n    }\n    present_pipeline(dst.pixelFormat);\n    double dw',
+        '    unsigned lv = c->has_view && c->view.set_levels ? c->view.base_level : 0, l0 = c->has_view && c->view.set_layers ? c->view.min_layer : 0;\n    NSUInteger w = MAX(t.width >> lv, 1u), h = MAX(t.height >> lv, 1u);':
+        '    unsigned lv = c->has_view && c->view.set_levels ? c->view.base_level : 0, l0 = c->has_view && c->view.set_layers ? c->view.min_layer : 0;\n    double z_cs = zelda_texture_scale(c->tex, t);   // the clear covers the whole level; compare in guest texels\n    NSUInteger w = MAX((z_cs != 1 ? c->tex->d.width : t.width) >> lv, 1u), h = MAX((z_cs != 1 ? c->tex->d.height : t.height) >> lv, 1u);',
+        '    BENC b = blit();\n    if (s3)\n        enc_b_copy_texture(':
+        '    if (!s3 && !d3 && zelda_scaled_copy(c, s, d, sl, dl, sz0, dz0, nz)) return;\n    BENC b = blit();\n    if (s3)\n        enc_b_copy_texture(',
+        '    BENC b = blit();\n    if (is3d)\n        enc_b_copy_texture_buffer(b, t, 0, level,':
+        '    if (!is3d && zelda_scaled_t2b(c, t, level, layer0, nz, (__bridge id<MTLBuffer>)mb, mo, row, img)) return;\n    BENC b = blit();\n    if (is3d)\n        enc_b_copy_texture_buffer(b, t, 0, level,',
+        '    BENC b = blit();\n    if (is3d)\n        enc_b_copy_buffer_texture(b, (__bridge id<MTLBuffer>)mb, mo, row,':
+        '    if (!is3d && zelda_scaled_b2t(c, t, level, layer0, nz, (__bridge id<MTLBuffer>)mb, mo, row, img)) return;\n    BENC b = blit();\n    if (is3d)\n        enc_b_copy_buffer_texture(b, (__bridge id<MTLBuffer>)mb, mo, row,',
+        '    mtl_finish_gpu();\n    id<MTLBuffer> buf = [g_dev newBufferWithLength:wb * hb * nz':
+        '    mtl_finish_gpu();\n    if (!is3d && zelda_scaled_read(t, mt, level, layer0, r, dst, row, img, wb, hb, nz)) return;\n    id<MTLBuffer> buf = [g_dev newBufferWithLength:wb * hb * nz',
+        # Runtime extrapolation assumes guest-sized targets.
+        # The quarter-resolution bloom's taps are a guest texel apart, the drag ghost moves its draw in guest pixels.
+        '    if (!dst || !bloomq_make_pipeline(dst.pixelFormat)) return 0;':
+        '    if (!dst || !bloomq_make_pipeline(dst.pixelFormat)) return 0;\n    double z_bs = zelda_texture_scale(g_bloomq.s_tex, src);',
+        'p[3] = src.width; p[4] = src.height; [en setFragmentBuffer:':
+        'p[3] = src.width / z_bs; p[4] = src.height / z_bs; [en setFragmentBuffer:',
+        'p[3] = src.width; p[4] = src.height; [g_bloomq_args setAddress:':
+        'p[3] = src.width / z_bs; p[4] = src.height / z_bs; [g_bloomq_args setAddress:',
+        '    float W = (float)g_pass.tw, H = (float)g_pass.th, ccx':
+        '    float W = (float)(g_pass.tw / z_pass_scale), H = (float)(g_pass.th / z_pass_scale), ccx',
+        '    return g_dm_rt_ab == 1 && !g_rt.disabled && g_frz_on <= 0':
+        '    return g_dm_rt_ab == 1 && zelda_native_scale() == 1 && !g_rt.disabled && g_frz_on <= 0',
     }
     for original, replacement in replacements.items():
         if source.count(original) != 1:

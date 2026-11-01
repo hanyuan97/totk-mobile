@@ -9,6 +9,7 @@ static zelda_settings_t current = {.target_fps = 60, .vibration = ZELDA_VIBRATIO
 static NSArray<NSString *> *metalfx_names(void) { return @[@"off", @"window", @"4k"]; }
 static NSArray<NSString *> *vibration_names(void) { return @[@"off", @"on"]; }
 static NSArray<NSString *> *render_names(void) { return @[@"original", @"1080p", @"720p", @"640p"]; }
+static NSArray<NSString *> *native_names(void) { return @[@"1x", @"1.5x", @"2x"]; }
 static NSArray<NSString *> *language_codes(void) {
     return @[@"ja", @"en-US", @"en-GB", @"fr", @"fr-CA", @"de", @"it", @"es", @"es-419", @"nl", @"ru", @"ko", @"zh-Hans", @"zh-Hant"];
 }
@@ -62,6 +63,10 @@ static void load_locked(void) {
     id shaders = stored[@"shader_compile"];
     if ([shaders isEqual:@"wait"] || [shaders isEqual:@"background"]) current.shader_wait = [shaders isEqual:@"wait"];
     else if (shaders) fprintf(stderr, "SETTINGS ignored shader_compile\n");
+    id native = stored[@"native_scale"];
+    mode = [native isKindOfClass:[NSString class]] ? [native_names() indexOfObject:native] : NSNotFound;
+    if (mode != NSNotFound) current.native_scale = (int)mode;
+    else if (native) fprintf(stderr, "SETTINGS ignored native_scale\n");
 }
 
 static NSString *system_language(void) {
@@ -133,7 +138,7 @@ zelda_settings_t zelda_settings(void) {
 bool zelda_settings_store(zelda_settings_t settings) {
     if (!zelda_settings_valid_fps(settings.target_fps) ||
         settings.metalfx < 0 || settings.metalfx > ZELDA_METALFX_4K || settings.vibration < 0 || settings.vibration > ZELDA_VIBRATION_ON ||
-        settings.render < 0 || settings.render > ZELDA_RENDER_640) return false;
+        settings.render < 0 || settings.render > ZELDA_RENDER_640 || settings.native_scale < 0 || settings.native_scale > ZELDA_NATIVE_2X) return false;
     @autoreleasepool {
         pthread_mutex_lock(&lock); load_locked();
         NSMutableDictionary *next = [stored mutableCopy];
@@ -144,6 +149,7 @@ bool zelda_settings_store(zelda_settings_t settings) {
         next[@"vibration"] = vibration_names()[(NSUInteger)settings.vibration];
         next[@"render_resolution"] = render_names()[(NSUInteger)settings.render];
         next[@"shader_compile"] = settings.shader_wait ? @"wait" : @"background";
+        next[@"native_scale"] = native_names()[(NSUInteger)settings.native_scale];
         NSData *data = [NSJSONSerialization dataWithJSONObject:next options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
         bool ok = data && [data writeToFile:settings_path() options:NSDataWritingAtomic error:nil];
         if (ok) { stored = next; current = settings; }

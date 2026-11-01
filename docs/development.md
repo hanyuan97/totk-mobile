@@ -59,6 +59,7 @@ Software checks cannot replace hands-on checks: what is visible on screen, what 
 | `ZELDA_SHADER_IR=0`, `ZELDA_SHADER_PREP_ALL=1` | Ignore offline Metal libraries / force a full shader preparation pass |
 | `ZELDA_DAY_RATE` | Scale the in-game day/night clock (0–16, 0 pauses it). Frame rate and physics are unaffected |
 | `ZELDA_WINDOW_POINTS` | Window size such as `1600x900` |
+| `ZELDA_NATIVE_SCALE` | Override the saved Native setting for this run (1–4, such as `1.5`) |
 | `ZELDA_RENDER_SCALE` | Experimental render scale (0.5–2). Clear it for normal play |
 | `ZELDA_SHADER_ASYNC=0\|1`, `ZELDA_SHADER_ASYNC_BUDGET_MS` | Override the Shaders setting for this run (1 = background, 0 = wait); per-frame wait for background pipelines before their draws are skipped (default 3) |
 | `ZELDA_PSO_LOG=1` | Diagnostics: every pipeline and shader library created at draw time, and background preparation steps over 5 ms |

@@ -35,6 +35,7 @@ static id<MTLTexture> zelda_heap_texture(const tex_t *t, MTLTextureDescriptor *d
         const char *e = getenv("ZELDA_RT_HEAP"), *scale = getenv("ZELDA_RT_HEAP_SCALE");   // scale: experiments only
         enabled = !e || atoi(e);
         if (scale && atof(scale) >= 1) z_rt_heap_scale = atof(scale);
+        z_rt_heap_scale *= zelda_native_scale() * zelda_native_scale();   // scaled targets keep their places
     }
     const uint32_t cpu_no_access = 0x1, virtual_pool = 0x200;   // NVN_MEMORY_POOL_FLAGS_*
     if (!enabled || !t->pool || (t->pool->flags & (cpu_no_access | virtual_pool)) != (cpu_no_access | virtual_pool) ||
@@ -67,6 +68,7 @@ static id<MTLTexture> zelda_heap_texture(const tex_t *t, MTLTextureDescriptor *d
 }
 
 static id<MTLTexture> zelda_device_texture(const tex_t *t, MTLTextureDescriptor *d) {
+    zelda_scale_descriptor(t, d);
     uint64_t offset = 0;
     id<MTLBuffer> memory = t->mem ? zelda_texture_pool((uint64_t)t->mem, t->L.size, &offset) : nil;
     NSData *key = nil;
@@ -88,6 +90,7 @@ static id<MTLTexture> zelda_device_texture(const tex_t *t, MTLTextureDescriptor 
         if (!holder->tex) return nil;
         res_add(holder->tex);
     }
+    zelda_scale_note(t, holder->tex);
     holder->storage_key = key; holder->storage_pool = memory;
     if (key) [z_texture_storage setObject:holder forKey:key];
     serial_put(t->serial, holder);

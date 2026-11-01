@@ -121,6 +121,11 @@ static void apply_render(int mode) {
     }
     controls_refresh();
 }
+static void apply_native(int mode) {   // read once at start (nvn_native_scale.inc)
+    store_settings(^(zelda_settings_t *settings) { settings->native_scale = mode; });
+    LOG("SETTINGS native_scale=%d (next start)", mode);
+    controls_refresh();
+}
 static void apply_metalfx(int mode) {
     store_settings(^(zelda_settings_t *settings) { settings->metalfx = mode; });
     zelda_present_metalfx(mode);

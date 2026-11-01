@@ -36,7 +36,7 @@ static void zelda_depth_clear_encode(void) {
     }
     long width = g_pass.tw, height = g_pass.th, x = 0, y = 0, right = width, bottom = height;
     if (z_depth_clear.has_scissor) {
-        p_scissor s = z_depth_clear.scissor;
+        p_scissor s = zelda_scale_scissor(z_depth_clear.scissor, z_pass_scale);
         x = MAX(s.x, 0); y = MAX(s.y, 0);
         right = MIN((int64_t)s.x + s.w, width); bottom = MIN((int64_t)s.y + s.h, height);
     }
