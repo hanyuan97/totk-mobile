@@ -80,6 +80,8 @@ int main(void) {
     assert(!input_script_parse("fps 45", &step) && !input_script_parse("fps", &step) && !input_script_parse("fps 90 x", &step) && !input_script_parse("fps 900", &step));
     assert(input_script_parse("render 120", &step) && step.kind == SCRIPT_RENDER && step.ms == 120);
     assert(!input_script_parse("render 49", &step) && !input_script_parse("render 201", &step) && !input_script_parse("render", &step));
+    assert(input_script_parse("native 150", &step) && step.kind == SCRIPT_NATIVE && step.ms == 150);
+    assert(!input_script_parse("native 99", &step) && !input_script_parse("native 401", &step) && !input_script_parse("native", &step));
     assert(input_script_parse("conditional 0", &step) && step.kind == SCRIPT_CONDITIONAL && step.ms == 0);
     assert(input_script_parse("conditional 1", &step) && step.ms == 1 && input_script_parse("conditional 2", &step) && step.ms == 2);
     assert(!input_script_parse("conditional 3", &step) && !input_script_parse("conditional -1", &step) && !input_script_parse("conditional 2 x", &step));

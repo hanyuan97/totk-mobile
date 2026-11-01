@@ -26,7 +26,7 @@ static id<MTLBuffer> zelda_texture_pool(uint64_t address, uint64_t length, uint6
 // overlap share memory exactly where the game reuses it. Everything else keeps its own texture. The game never
 // writes these pools from the CPU, so no guest data is uploaded into them; every encoder starts behind a queue
 // barrier, which orders a target's last use before the next one's writes. ZELDA_RT_HEAP=0 disables it.
-static double z_rt_heap_scale = 1.25;   // Great Sky Island: 1.125 left 56 MiB of targets outside; 1.25 places all but 3 MiB
+static double z_rt_heap_base = 1.25, z_rt_heap_scale;   // Great Sky Island: 1.125 left 56 MiB of targets outside; 1.25 places all but 3 MiB
 static struct { const pool_t *pool; uint64_t size; __strong id<MTLHeap> heap; } z_rt_heaps[8];
 static uint64_t z_rt_heap_placed, z_rt_heap_bytes, z_rt_heap_fallbacks, z_rt_heap_fallback_bytes;
 static id<MTLTexture> zelda_heap_texture(const tex_t *t, MTLTextureDescriptor *d, uint64_t offset) {
@@ -34,8 +34,8 @@ static id<MTLTexture> zelda_heap_texture(const tex_t *t, MTLTextureDescriptor *d
     if (enabled < 0) {
         const char *e = getenv("ZELDA_RT_HEAP"), *scale = getenv("ZELDA_RT_HEAP_SCALE");   // scale: experiments only
         enabled = !e || atoi(e);
-        if (scale && atof(scale) >= 1) z_rt_heap_scale = atof(scale);
-        z_rt_heap_scale *= zelda_native_scale() * zelda_native_scale();   // scaled targets keep their places
+        if (scale && atof(scale) >= 1) z_rt_heap_base = atof(scale);
+        z_rt_heap_scale = z_rt_heap_base * zelda_native_scale() * zelda_native_scale();   // scaled targets keep their places
     }
     const uint32_t cpu_no_access = 0x1, virtual_pool = 0x200;   // NVN_MEMORY_POOL_FLAGS_*
     if (!enabled || !t->pool || (t->pool->flags & (cpu_no_access | virtual_pool)) != (cpu_no_access | virtual_pool) ||
@@ -67,30 +67,46 @@ static id<MTLTexture> zelda_heap_texture(const tex_t *t, MTLTextureDescriptor *d
     return texture;
 }
 
+// The render-target heaps are replaced (native scale change): later placements go to new heaps sized for the new
+// scale, and each old heap goes once the textures moved out of it are released.
+static void zelda_rt_heaps_reset(NSHashTable *retired) {
+    z_rt_heap_scale = z_rt_heap_base * z_native_scale * z_native_scale;
+    for (int i = 0; i < 8; i++) {
+        if (z_rt_heaps[i].heap) { [retired addObject:z_rt_heaps[i].heap]; defer_obj_release(z_rt_heaps[i].heap); }
+        z_rt_heaps[i].pool = NULL; z_rt_heaps[i].size = 0; z_rt_heaps[i].heap = nil;
+    }
+}
+// Textures with this key share one Metal texture, as the guest's share pool storage.
+static NSData *zelda_storage_key(const tex_t *t, MTLTextureDescriptor *d, id<MTLBuffer> memory, uint64_t offset) {
+    if (!memory) return nil;
+    // The holder retains this pool buffer, so a reused host address cannot match a retired pool.
+    uint64_t fields[] = {(uintptr_t)(__bridge void *)memory, offset, t->L.size, t->L.layer_size,
+        d.textureType, d.pixelFormat, d.width, d.height, d.depth, d.arrayLength,
+        d.mipmapLevelCount, d.sampleCount, d.usage, t->d.flags, t->d.stride,
+        (uint64_t)t->d.pkg_block_h, t->L.tileH, t->L.tileD};
+    return [NSData dataWithBytes:fields length:sizeof fields];
+}
+// Metal storage for a device texture: placed in its pool's render-target heap when it fits, else on its own.
+static id<MTLTexture> zelda_device_storage(const tex_t *t, MTLTextureDescriptor *d, id<MTLBuffer> memory, uint64_t offset) {
+    id<MTLTexture> texture = memory ? zelda_heap_texture(t, d, offset) : nil;
+    if (!texture && (texture = [g_dev newTextureWithDescriptor:d])) res_add(texture);
+    return texture;
+}
 static id<MTLTexture> zelda_device_texture(const tex_t *t, MTLTextureDescriptor *d) {
     zelda_scale_descriptor(t, d);
     uint64_t offset = 0;
     id<MTLBuffer> memory = t->mem ? zelda_texture_pool((uint64_t)t->mem, t->L.size, &offset) : nil;
-    NSData *key = nil;
-    if (memory) {
-        // The holder retains this pool buffer, so a reused host address cannot match a retired pool.
-        uint64_t fields[] = {(uintptr_t)(__bridge void *)memory, offset, t->L.size, t->L.layer_size,
-            d.textureType, d.pixelFormat, d.width, d.height, d.depth, d.arrayLength,
-            d.mipmapLevelCount, d.sampleCount, d.usage, t->d.flags, t->d.stride,
-            (uint64_t)t->d.pkg_block_h, t->L.tileH, t->L.tileD};
-        key = [NSData dataWithBytes:fields length:sizeof fields];
+    NSData *key = zelda_storage_key(t, d, memory, offset);
+    if (key) {
         if (!z_texture_storage) z_texture_storage = [NSMapTable weakToWeakObjectsMapTable];
         NvPkg *shared = [z_texture_storage objectForKey:key];
         if (shared) { serial_put(t->serial, shared); z_texture_alias_hits++; return shared->tex; }
     }
     NvPkg *holder = [NvPkg new];
-    holder->tex = memory ? zelda_heap_texture(t, d, offset) : nil;
-    if (!holder->tex) {
-        holder->tex = [g_dev newTextureWithDescriptor:d];
-        if (!holder->tex) return nil;
-        res_add(holder->tex);
-    }
+    holder->tex = zelda_device_storage(t, d, memory, offset);
+    if (!holder->tex) return nil;
     zelda_scale_note(t, holder->tex);
+    zelda_scale_track(t, holder);
     holder->storage_key = key; holder->storage_pool = memory;
     if (key) [z_texture_storage setObject:holder forKey:key];
     serial_put(t->serial, holder);

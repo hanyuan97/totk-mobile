@@ -36,14 +36,14 @@ static int zelda_resample_kind(MTLPixelFormat pf, MTLPixelFormat *out, MTLPixelF
     }
 }
 static id<MTLComputePipelineState> zelda_resample_pipeline(id<MTLDevice> dev, int kind) {
-    static id<MTLComputePipelineState> ps[4]; static int failed;
-    if (!ps[0] && !failed) {
+    static id<MTLComputePipelineState> ps[4]; static int failed; static dispatch_once_t once;
+    dispatch_once(&once, ^{   // also warmed on a background queue (zelda_native_scale)
         NSError *e = nil; id<MTLLibrary> lib = [dev newLibraryWithSource:@(k_zelda_resample_msl) options:nil error:&e];
         const char *names[4] = {"rs_f", "rs_u", "rs_i", "rs_d"};
         for (int i = 0; i < 4 && lib; i++) { id<MTLFunction> f = [lib newFunctionWithName:@(names[i])]; ps[i] = f ? [dev newComputePipelineStateWithFunction:f error:&e] : nil; }
-        if (!ps[0] || !ps[1] || !ps[2] || !ps[3]) { failed = 1; ps[0] = nil; fprintf(stderr, "[dm] [nvn-mtl] ERROR: Native scale: resample pipelines failed: %s\n", e.localizedDescription.UTF8String); }
-    }
-    return kind >= 0 && kind < 4 ? ps[kind] : nil;
+        if (!ps[0] || !ps[1] || !ps[2] || !ps[3]) { failed = 1; fprintf(stderr, "[dm] [nvn-mtl] ERROR: Native scale: resample pipelines failed: %s\n", e.localizedDescription.UTF8String); }
+    });
+    return kind >= 0 && kind < 4 && !failed ? ps[kind] : nil;
 }
 typedef struct { float o[2], r[2]; uint32_t n[2], srgb, pad; } zelda_resample_params;
 typedef struct { id<MTLComputePipelineState> ps; id<MTLTexture> out, src_view, out_view; zelda_resample_params p; MTLSize groups, group; } zelda_resample_job;

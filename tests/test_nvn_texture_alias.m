@@ -31,6 +31,14 @@ static int mtl_addr(uint64_t address, uint64_t size, void **buffer, uint64_t *of
 @implementation NvPkg
 - (void)dealloc { res_remove(tex); }
 @end
+// nvn_native_scale.inc: the render-target scale and its bookkeeping.
+static double z_native_scale = 1;
+static double zelda_native_scale(void) { return z_native_scale; }
+static void zelda_scale_descriptor(const tex_t *t, MTLTextureDescriptor *d) { (void)t; (void)d; }
+static void zelda_scale_note(const tex_t *t, id<MTLTexture> texture) { (void)t; (void)texture; }
+static unsigned tracked;
+static void zelda_scale_track(const tex_t *t, NvPkg *holder) { (void)t; (void)holder; tracked++; }
+static void defer_obj_release(id object) { res_remove(object); }   // nothing is in flight here
 #include "../host/nvn_texture_alias.inc"
 static id<MTLTexture> tex_mtl(const tex_t *t) { NvPkg *holder=serials[@(t->serial)]; return holder ? holder->tex : nil; }
 
@@ -140,6 +148,26 @@ int main(void) { @autoreleasepool {
     assert(!dispatch_semaphore_wait(copied, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)));
     assert(!memcmp(back.contents, source.contents, 2 * 256 * 1024));
     zelda_texture_alias_census();   // diagnostic walk over live storage, including heap-placed targets
+    assert(tracked == 11);   // every device texture with its own storage: aliases share their holder
+    // A native scale change: later placements go to a new heap sized for the scale, and a replaced heap is released
+    // once the textures placed in it are.
+    __weak id<MTLHeap> old_heap;
+    @autoreleasepool {
+        NSHashTable *retired = [NSHashTable weakObjectsHashTable];
+        z_native_scale = 2; zelda_rt_heaps_reset(retired);
+        assert([retired containsObject:t1.heap] && z_rt_heap_scale == z_rt_heap_base * 4);
+        uint64_t offset = 0; id<MTLBuffer> pool = zelda_texture_pool((uint64_t)first.mem, first.L.size, &offset);
+        rt.width = rt.height = 512;   // the 256x256 target at 2x
+        id<MTLTexture> scaled = zelda_device_storage(&first, rt, pool, offset);
+        assert(scaled.heap && scaled.heap != t1.heap && scaled.heap.size >= (uint64_t)((1 << 20) * z_rt_heap_scale));
+        assert(![zelda_storage_key(&first, rt, pool, offset) isEqual:((NvPkg *)serials[@20])->storage_key]);
+        old_heap = scaled.heap;
+        z_native_scale = 1; zelda_rt_heaps_reset(retired);
+        assert([retired containsObject:old_heap]);
+        scaled = nil;
+    }
+    [residency commit];
+    assert(!old_heap);
     puts("Texture aliases: shared GPU contents, incompatible storage separation and final-owner residency passed");
-    puts("Render-target heap: guest-offset placement, aliasing only where guest ranges overlap, exclusions and separate GPU contents passed");
+    puts("Render-target heap: guest-offset placement, aliasing only where guest ranges overlap, exclusions, separate GPU contents and heap replacement passed");
 } }

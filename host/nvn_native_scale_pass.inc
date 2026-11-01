@@ -216,3 +216,91 @@ static int zelda_scaled_read(const tex_t *t, id<MTLTexture> mt, unsigned level, 
     zelda_scale_report(3, 1, "CPU texel read", t, s, NULL, 1);
     return 1;
 }
+
+// A scale change from the settings, at the start of a queue submission (no encoder open): every tracked device texture
+// gets new storage, scaled ones at the new size with their contents resampled, the rest copied as they are into the
+// new heaps. Holders keep their identity, so serials, aliases and views follow (g_ser_gen); the old textures and heaps
+// are released after this submission, which the audit a few submissions later confirms.
+static NSHashTable *z_switch_retired;   // old storage, weakly: what is still alive after the switch
+static uint64_t z_switch_audit_fence, z_switch_audits;
+static void zelda_native_scale_audit(void) {
+    if (!z_switch_retired || g_done < z_switch_audit_fence) return;
+    @autoreleasepool {
+        uint64_t bytes = 0; NSUInteger alive = 0;
+        for (id<MTLAllocation> r in z_switch_retired.allObjects) { alive++; bytes += r.allocatedSize; }
+        MLOG("Native scale: %lu old textures and heaps still alive (%.1f MiB), GPU memory %.0f MiB", (unsigned long)alive, bytes / 1048576.0,
+             g_dev.currentAllocatedSize / 1048576.0);
+        if (!alive || ++z_switch_audits >= 3) { z_switch_retired = nil; z_switch_audits = 0; }
+        else z_switch_audit_fence = g_fence + 60;
+    }
+}
+// The whole of old copied into new (same size and format).
+static void zelda_storage_copy(id<MTLTexture> old, id<MTLTexture> nt) {
+    BENC b = blit();
+    NSUInteger slices = old.textureType == MTLTextureType3D ? 1 : old.arrayLength * (old.textureType == MTLTextureTypeCube || old.textureType == MTLTextureTypeCubeArray ? 6 : 1);
+    for (NSUInteger l = 0; l < old.mipmapLevelCount; l++) {
+        NSUInteger w = MAX(old.width >> l, 1u), h = MAX(old.height >> l, 1u), z = old.textureType == MTLTextureType3D ? MAX(old.depth >> l, 1u) : 1;
+        for (NSUInteger s = 0; s < slices; s++)
+            enc_b_copy_texture(b, old, s, l, MTLOriginMake(0, 0, 0), MTLSizeMake(w, h, z), nt, s, l, MTLOriginMake(0, 0, 0));
+    }
+}
+// The contents of old at scale s0 resampled into nt at scale s1; 0 when the format has no kernel (stencil).
+static int zelda_storage_resample(id<MTLTexture> old, id<MTLTexture> nt, double s0, double s1) {
+    NSUInteger slices = old.textureType == MTLTextureType2DArray ? old.arrayLength : 1;
+    for (NSUInteger l = 0; l < old.mipmapLevelCount && l < nt.mipmapLevelCount; l++)
+        for (NSUInteger s = 0; s < slices; s++) {
+            id<MTLTexture> tmp = zelda_resample(nil, old, (unsigned)l, (unsigned)s, 0, 0, s0 / s1, MAX(nt.width >> l, 1u), MAX(nt.height >> l, 1u));
+            if (!tmp) return 0;
+            zelda_resample_store(tmp, nt, (unsigned)s, (unsigned)l, MTLOriginMake(0, 0, 0));
+        }
+    return 1;
+}
+static void zelda_native_scale_switch(void) {
+    int want = atomic_exchange(&z_native_request, 0);
+    if (!want) { zelda_native_scale_audit(); return; }
+    double s0 = zelda_native_scale(), s1 = want / 100.0;
+    if (s1 == s0) return;
+    uint64_t before = g_dev.currentAllocatedSize;
+    double t0 = CFAbsoluteTimeGetCurrent();
+    rp_end(); if (g_blit) { enc_b_end(g_blit); g_blit = nil; }
+    z_switch_retired = [NSHashTable weakObjectsHashTable]; z_switch_audits = 0;
+    z_native_scale = s1;
+    zelda_rt_heaps_reset(z_switch_retired);
+    os_unfair_lock_lock(&z_scaled_lock); [z_scaled_textures removeAllObjects]; os_unfair_lock_unlock(&z_scaled_lock);
+    z_scaled_count = z_scaled_bytes = 0;
+    unsigned rebuilt = 0, resized = 0, blank = 0, failed = 0;
+    NSArray<ZeldaScaleEntry *> *entries = [z_scale_entries copy];
+    [z_scale_entries removeAllObjects];
+    for (ZeldaScaleEntry *e in entries) {
+        NvPkg *holder = e->holder;
+        if (!holder) continue;
+        [z_scale_entries addObject:e];
+        const tex_t *t = &e->t; id<MTLTexture> old = holder->tex;
+        // The pool is used only while the holder's pool buffer is still the one at the texture's address.
+        uint64_t offset = 0;
+        id<MTLBuffer> memory = t->mem && holder->storage_pool ? zelda_texture_pool((uint64_t)t->mem, t->L.size, &offset) : nil;
+        if (memory != holder->storage_pool) memory = nil;
+        MTLTextureDescriptor *d = tex_desc(t, 0);
+        if (!d) { failed++; continue; }
+        d.usage = old.usage;   // keeps upgrades such as the pixel-format view
+        zelda_scale_descriptor(t, d);
+        int resize = d.width != old.width || d.height != old.height;
+        if (!resize && !old.heap) continue;   // own storage at the same size: nothing to free
+        id<MTLTexture> nt = zelda_device_storage(t, d, memory, offset);
+        if (!nt) { failed++; continue; }
+        if (!resize) zelda_storage_copy(old, nt);
+        else if (!zelda_storage_resample(old, nt, old.width == t->d.width ? 1 : s0, nt.width == t->d.width ? 1 : s1)) blank++;
+        if (holder->storage_key && [z_texture_storage objectForKey:holder->storage_key] == holder) [z_texture_storage removeObjectForKey:holder->storage_key];
+        holder->storage_key = zelda_storage_key(t, d, memory, offset); holder->storage_pool = memory;
+        if (holder->storage_key) [z_texture_storage setObject:holder forKey:holder->storage_key];
+        holder->tex = nt;
+        [z_switch_retired addObject:old]; defer_obj_release(old);
+        zelda_scale_note(t, nt);
+        rebuilt++; resized += resize;
+    }
+    pthread_mutex_lock(&g_smu); g_ser_gen++; pthread_mutex_unlock(&g_smu);
+    args_dirty_all();
+    z_switch_audit_fence = g_fence + 10;
+    MLOG("Native scale: %.2fx -> %.2fx, %u textures rebuilt (%u resized, %u without contents, %u failed) in %.0f ms, GPU memory %.0f MiB before",
+         s0, s1, rebuilt, resized, blank, failed, (CFAbsoluteTimeGetCurrent() - t0) * 1000, before / 1048576.0);
+}

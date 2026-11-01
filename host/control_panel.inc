@@ -104,15 +104,14 @@ static void controls_refresh(void) {
     for (NSInteger i = 0; i < 3; i++) if (control_rates[i] == rate) controls->fps.selectedSegment = i;
     controls->render.enabled = zelda_render_scale() != 0;
     controls->render.selectedSegment = s.render;
-    // The native scale is read once at start; the note shows what the saved choice gives and whether it is pending.
+    // The note shows the size the render targets get at the chosen scale.
     static const double native_factors[] = {1, 1.5, 2};
     static const unsigned render_heights[] = {0, 1080, 720, 640}, render_widths[] = {0, 1920, 1280, 1136};
-    double factor = native_factors[s.native_scale], running = zelda_native_scale_running();
+    double factor = native_factors[s.native_scale];
     controls->native.selectedSegment = s.native_scale;
     NSString *size = s.render == ZELDA_RENDER_ORIGINAL ? [NSString stringWithFormat:@"%g× the game-selected resolution", factor] :
         [NSString stringWithFormat:@"%.0f×%.0f", ceil(render_widths[s.render] * factor), ceil(render_heights[s.render] * factor)];
-    controls->native_note.stringValue = fabs(running - factor) < 0.01 ? [NSString stringWithFormat:@"Native: %@", size] :
-        [NSString stringWithFormat:@"Native: %@ after restart (now %gx)", size, running];
+    controls->native_note.stringValue = [NSString stringWithFormat:@"Native: %@", size];
     controls->metalfx.selectedSegment = zelda_present_metalfx_mode();   // ZELDA_METALFX can override the setting
     controls->shaders.selectedSegment = s.shader_wait;
     controls->vibration.selectedSegment = s.vibration;
@@ -148,7 +147,7 @@ static void controls_start(NSWindow *window) {
     controls->render = control_choice(@[@"Original", @"1080", @"720", @"640"], @selector(renderChanged:),
         @"Original keeps the game-selected resolution. The 1080 / 720 / 640 presets request 1920×1080, 1280×720 and 1136×640.", choice_width);
     controls->native = control_choice(@[@"1x", @"1.5x", @"2x"], @selector(nativeChanged:),
-        @"Draws the game's render targets at this multiple of the resolution above (1080 at 2x = 3840×2160). The GPU cost grows with the pixel count. Applies at the next start.", choice_width);
+        @"Draws the game's render targets at this multiple of the resolution above (1080 at 2x = 3840×2160). The GPU cost grows with the pixel count.", choice_width);
     controls->metalfx = control_choice(@[@"Off", @"Window", @"4K"], @selector(metalfxChanged:),
         @"MetalFX spatially upscales the 1920×1080 output to the window or 3840×2160. It has no effect when the window is at or below 1920×1080.", choice_width);
     controls->shaders = control_choice(@[@"Background", @"Wait"], @selector(shadersChanged:),

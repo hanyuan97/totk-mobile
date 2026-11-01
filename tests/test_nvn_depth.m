@@ -30,6 +30,9 @@ static void args_dirty_all(void) { dirty++; }
 #define enc_r_depth_clip(e,v) [(e) setDepthClipMode:(v) ? MTLDepthClipModeClip : MTLDepthClipModeClamp]
 #define enc_r_stencil_ref(e,f,b) [(e) setStencilReferenceValue:(f)]
 #define enc_r_visibility(e,m,o) [(e) setVisibilityResultMode:(m) offset:(o)]
+// nvn_native_scale.inc: targets at their guest size.
+static p_scissor zelda_scale_scissor(p_scissor s, double scale) { (void)scale; return s; }
+static double z_pass_scale = 1;
 #include "../host/nvn_depth_clear.inc"
 
 int main(void) { @autoreleasepool {

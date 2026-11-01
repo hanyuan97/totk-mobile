@@ -29,7 +29,7 @@ The game language follows the system's preferred languages (Traditional Chinese,
 | --- | --- | --- |
 | Frame rate | 30 / 60 / 90 FPS | Default 60. A target is not a guarantee; pre-rendered movies still play at 30 |
 | Resolution | Original / 1080 / 720 / 640 | **Original** keeps the game's own dynamic resolution. Fixed modes render the scene at 1920×1080, 1280×720 or 1136×640 |
-| Native | 1x / 1.5x / 2x | Draws the game's render targets at this multiple of the resolution above while the game still sees its own sizes (1080 at 2x = 3840×2160), so edges and distant detail come out sharper. GPU cost grows with the pixel count. Shadow maps and small blur targets stay 1x. Applies at the next start |
+| Native | 1x / 1.5x / 2x | Draws the game's render targets at this multiple of the resolution above while the game still sees its own sizes (1080 at 2x = 3840×2160), so edges and distant detail come out sharper. GPU cost grows with the pixel count. Shadow maps and small blur targets stay 1x. Applies at once |
 | MetalFX | Off / Window / 4K | Spatially upscales only the final image: **Window** to the window's pixel size, **4K** to 3840×2160 and then fitted to the window. Both apply only when the window has more pixels than the game image |
 | Shaders | Background / Wait | Default **Background**: a shader or pipeline the game has not used before is prepared on other threads while the frame goes on without the draws that need it, so an effect seen for the first time can appear a few frames late instead of stalling the game. **Wait** keeps the earlier behavior. Also in **View → Compile New Shaders in Background** |
 | Fullscreen, Sound, Performance | Off / On | Performance shows the overlay |

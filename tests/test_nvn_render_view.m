@@ -66,6 +66,9 @@ static void enc_b_copy_texture(id e, id<MTLTexture> source, NSUInteger sl, NSUIn
     [e copyFromTexture:source sourceSlice:sl sourceLevel:lv sourceOrigin:origin sourceSize:size
         toTexture:destination destinationSlice:dl destinationLevel:dv destinationOrigin:dest];
 }
+// nvn_native_scale.inc: targets at their guest size.
+static p_scissor zelda_scale_scissor(p_scissor s, double scale) { (void)scale; return s; }
+static double zelda_texture_scale_of(id<MTLTexture> texture) { (void)texture; return 1; }
 #include "../host/nvn_clear_region.inc"
 // Render-target state the attachment logic reads (field names as in the backend).
 static struct { int has_rt; struct { int n; tex_t *color[8]; view_t cview[8]; int has_cview[8]; tex_t *depth; } rt; int clear_c[8], clear_d, clear_s; } R;

@@ -44,6 +44,7 @@ Software checks cannot replace hands-on checks: what is visible on screen, what 
 | `shot <path>` | Save a screenshot |
 | `trace <seconds> <path>`, `dump <frames>` | Record a frame timeline / dump graphics commands |
 | `fps <30\|60\|90\|120>`, `render <50..200>` | Change the frame rate target / the internal render scale |
+| `native <100..400>` | Change the native scale (percent) as the Native setting does, without saving it |
 
 `script/scenes/first-save.input` and `first-save-fast.input` walk the menu to the first save. Scripts know nothing about your save list, so check where you end up. Never use scripts to advance the story or to save.
 

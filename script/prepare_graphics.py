@@ -496,7 +496,7 @@ static inline void m4_end(id e) {
         'ops[i].type == 0 || ops[i].type == 0x10 ? t : 0':
         '0 /* Timestamp reports have a zero payload; conditional rendering compares this field. */',
         'void mtl_sub_begin(void) {':
-        'static struct { int keep, ring; uint32_t used; } z_slice_vis;\nstatic id<MTLBuffer> z_slice_vis_buffer;\nstatic uint64_t z_queue_submit;\n'
+        'static struct { int keep, ring; uint32_t used; } z_slice_vis;\nstatic id<MTLBuffer> z_slice_vis_buffer;\nstatic uint64_t z_queue_submit;\nstatic void zelda_native_scale_switch(void);\n'
         'void mtl_sub_begin(void) {\n    if (!z_slice_vis.keep) z_queue_submit++;',
         '    int pick = -1;\n    for (int i = 0; i < g_vis_ring_n; i++) if (g_vis_ring[i].fence <= g_done) { pick = i; break; }\n':
         '''    // Slices of one queue submission share its visibility buffer, so unreported query slots are never reused.
@@ -1092,6 +1092,12 @@ static void bind_args(id<MTLCommandEncoder> en, int nvn_stage, int metal_vertex,
         '    if (!is3d && zelda_scaled_b2t(c, t, level, layer0, nz, (__bridge id<MTLBuffer>)mb, mo, row, img)) return;\n    BENC b = blit();\n    if (is3d)\n        enc_b_copy_buffer_texture(b, (__bridge id<MTLBuffer>)mb, mo, row,',
         '    mtl_finish_gpu();\n    id<MTLBuffer> buf = [g_dev newBufferWithLength:wb * hb * nz':
         '    mtl_finish_gpu();\n    if (!is3d && zelda_scaled_read(t, mt, level, layer0, r, dst, row, img, wb, hb, nz)) return;\n    id<MTLBuffer> buf = [g_dev newBufferWithLength:wb * hb * nz',
+        # A native scale change from the settings applies at the start of a submission.
+        # A heap is an allocation but not a resource; it leaves the residency set like the textures retired with it.
+        'if (!d->keep_resident && [obj conformsToProtocol:@protocol(MTLResource)]) {':
+        'if (!d->keep_resident && ([obj conformsToProtocol:@protocol(MTLResource)] || [obj conformsToProtocol:@protocol(MTLHeap)])) {',
+        '    void arena_begin(void); arena_begin();\n}':
+        '    void arena_begin(void); arena_begin();\n    zelda_native_scale_switch();\n}',
         # Runtime extrapolation assumes guest-sized targets.
         # The quarter-resolution bloom's taps are a guest texel apart, the drag ghost moves its draw in guest pixels.
         '    if (!dst || !bloomq_make_pipeline(dst.pixelFormat)) return 0;':

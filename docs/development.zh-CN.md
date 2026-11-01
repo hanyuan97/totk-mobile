@@ -44,6 +44,7 @@ work/venv/bin/python tools/prepare_modules.py --check
 | `shot <路径>` | 保存截图 |
 | `trace <秒> <路径>`、`dump <帧数>` | 记录帧时间线 / 转储图形命令 |
 | `fps <30\|60\|90\|120>`、`render <50..200>` | 切换帧率目标 / 内部渲染倍率 |
+| `native <100..400>` | 与 Native 设置相同地切换原生倍率（百分比），不保存 |
 
 `script/scenes/first-save.input` 和 `first-save-fast.input` 会走菜单读取第一个存档。脚本不知道你的存档列表，请核对实际到达的位置。不要用脚本推进剧情或存档。
 
