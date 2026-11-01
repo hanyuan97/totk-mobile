@@ -40,6 +40,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## nxnative
+
+nxnative 是 d2r-mobile 的后续项目。iPhone 的虚拟手柄 `ios/touch_controls.m` 改自其 `dm/ios/Sources/DmGamepad.m`（两种布局、按键形状和触点归属规则；未采用实体手柄与运动传感器部分），启动器 `ios/Launcher.swift` 改自其 `dm/ios/Sources/Launcher.swift` 与 `LauncherRow.swift`（画面布局和云存档部分；设置项是本项目自己的）。Mac 应用图标与 `/Applications` 中的包装应用沿用其 `dm/mac/pack_app.py` 用游戏自带图标生成 `.icns` 的做法。
+
+来源：[seedds/nxnative](https://github.com/seedds/nxnative)，MIT 许可证，Copyright (c) 2026 seedds。许可证文本同上。
+
 ## 资源准备工具
 
 60 FPS 适配的时间字段、过场调用点与菜单条件依据 [masagrator 的 FPSLocker v1.4.3 配置](https://github.com/masagrator/FPSLocker-Warehouse/blob/v4/SaltySD/plugins/FPSLocker/patches/0100F2C0115B6000/277178B7DBA1B6D4.yaml) 识别，并与本机模块原字节核对。本项目编写了适用于原生装载、19.2 MHz 时钟和 Apple ABI 的桩，不分发该仓库的游戏程序或 NPDM；配置中的动态分辨率参数修改未采用。

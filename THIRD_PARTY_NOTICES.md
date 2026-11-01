@@ -40,6 +40,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## nxnative
+
+nxnative continues d2r-mobile. The iPhone's virtual gamepad `ios/touch_controls.m` is adapted from its `dm/ios/Sources/DmGamepad.m` (the two layouts, the control shapes and the touch ownership rules; the hardware-controller and motion-sensor parts are not taken), and the launcher `ios/Launcher.swift` from its `dm/ios/Sources/Launcher.swift` and `LauncherRow.swift` (the screen's layout and the cloud-saves section; the settings are this project's). The Mac app icon and the `/Applications` wrapper follow its `dm/mac/pack_app.py` in making the `.icns` from the game's own icon.
+
+Source: [seedds/nxnative](https://github.com/seedds/nxnative), MIT License, Copyright (c) 2026 seedds. The license text is the one above.
+
 ## Resource preparation tools
 
 The time fields, cutscene call sites and menu conditions used by the 60 FPS adaptation were identified from [masagrator's FPSLocker v1.4.3 configuration](https://github.com/masagrator/FPSLocker-Warehouse/blob/v4/SaltySD/plugins/FPSLocker/patches/0100F2C0115B6000/277178B7DBA1B6D4.yaml) and checked against the original bytes of the local modules. This project wrote its own stubs for native loading, the 19.2 MHz clock and the Apple ABI, and does not distribute that repository's game programs or NPDM; the configuration's dynamic-resolution changes were not adopted.

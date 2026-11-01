@@ -56,16 +56,25 @@ int main(int argc, char **argv) { @autoreleasepool {
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .render = 4}));
     assert(zelda_settings().target_fps == 60);
     assert(zelda_settings_store((zelda_settings_t){.target_fps = 90, .fullscreen = false,
-        .metalfx = ZELDA_METALFX_4K, .muted = true, .hide_performance = true, .vibration = ZELDA_VIBRATION_ON, .render = ZELDA_RENDER_640}));
+        .metalfx = ZELDA_METALFX_4K, .muted = true, .hide_performance = true, .vibration = ZELDA_VIBRATION_ON, .render = ZELDA_RENDER_640, .shader_wait = true}));
     NSDictionary *saved = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0 error:nil];
     assert([saved[@"target_fps"] isEqual:@90] && [saved[@"fullscreen"] isEqual:@NO] && [saved[@"future"][@"a"] isEqual:@1] &&
            !saved[@"dynamic_resolution"] && [saved[@"metalfx_upscale"] isEqual:@"4k"] &&
-           [saved[@"sound"] isEqual:@NO] && [saved[@"performance_overlay"] isEqual:@NO] && [saved[@"vibration"] isEqual:@"on"] && [saved[@"render_resolution"] isEqual:@"640p"]);
+           [saved[@"sound"] isEqual:@NO] && [saved[@"performance_overlay"] isEqual:@NO] && [saved[@"vibration"] isEqual:@"on"] && [saved[@"render_resolution"] isEqual:@"640p"] &&
+           [saved[@"shader_compile"] isEqual:@"wait"]);
     NSString *json = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
     assert([json containsString:@"\"sound\" : false"] && [json containsString:@"\"performance_overlay\" : false"]);   // JSON booleans
     settings = zelda_settings();
     assert(settings.target_fps == 90 && !settings.fullscreen && settings.metalfx == ZELDA_METALFX_4K && settings.muted &&
-           settings.hide_performance && settings.vibration == ZELDA_VIBRATION_ON && settings.render == ZELDA_RENDER_640);
+           settings.hide_performance && settings.vibration == ZELDA_VIBRATION_ON && settings.render == ZELDA_RENDER_640 && settings.shader_wait);
+    // The language choice: stored beside the other fields, an unknown code refused, "" follows the system again.
+    assert(!strcmp(zelda_language_choice(), "") && !strcmp(zelda_language_code(0), "ja") && !zelda_language_code(100));
+    assert(!zelda_settings_store_language("klingon") && zelda_settings_store_language("zh-Hant") && !strcmp(zelda_language_choice(), "zh-Hant"));
+    saved = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0 error:nil];
+    assert([saved[@"language"] isEqual:@"zh-Hant"] && [saved[@"target_fps"] isEqual:@90]);
+    assert(zelda_settings_store_language("") && !strcmp(zelda_language_choice(), "") && zelda_settings().target_fps == 90);
+    saved = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0 error:nil];
+    assert(!saved[@"language"]);
     unlink(argv[1]);
-    puts("Settings: preset/rumble migration, obsolete field removal, validation, atomic save and unknown fields passed");
+    puts("Settings: preset/rumble migration, obsolete field removal, validation, atomic save, unknown fields and the language choice passed");
 } }

@@ -43,6 +43,8 @@ static NSURL *cloud_url;   // Security-scoped iCloud Drive folder, held for the 
 static BOOL cloud_checked;
 static NSString *const cloud_bookmark_key = @"ZeldaCloudSaveFolder", *const cloud_off_key = @"ZeldaCloudSaveOff";
 static void cloud_offer(void);
+static void start_game(void);
+void zelda_show_launcher(void *view_controller);   // Launcher.swift
 
 static double physical_gib(void) {
     task_vm_info_data_t info={0};mach_msg_type_number_t count=TASK_VM_INFO_COUNT;
@@ -117,6 +119,28 @@ static NSURL *cloud_folder(void) {
     }
     return url;
 }
+
+// The launcher's view of the cloud-save folder (Launcher.swift, launcher_bridge.h): the same bookmark the game uses.
+NSString *zelda_cloud_folder_name(void) {
+    if (!cloud_url) cloud_url = cloud_folder();
+    return cloud_url.lastPathComponent;
+}
+bool zelda_cloud_store(NSURL *folder) {
+    if (![folder startAccessingSecurityScopedResource]) { fprintf(stderr, "CLOUD_SAVE picked folder unavailable\n"); return false; }
+    NSData *bookmark = [folder bookmarkDataWithOptions:0 includingResourceValuesForKeys:nil relativeToURL:nil error:nil];
+    if (!bookmark) { [folder stopAccessingSecurityScopedResource]; return false; }
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:bookmark forKey:cloud_bookmark_key]; [defaults removeObjectForKey:cloud_off_key];
+    if (cloud_url) [cloud_url stopAccessingSecurityScopedResource];
+    cloud_url = folder; return true;
+}
+void zelda_cloud_clear(void) {
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults removeObjectForKey:cloud_bookmark_key]; [defaults setBool:YES forKey:cloud_off_key];
+    if (cloud_url) [cloud_url stopAccessingSecurityScopedResource];
+    cloud_url = nil;
+}
+void zelda_launcher_play(void) { cloud_checked = YES; start_game(); }   // the launcher settled the cloud folder: no offer
 
 static void start_game(void) {
     if (launched) return;
@@ -264,13 +288,20 @@ static void start_game(void) {
     __weak ZeldaController *weakSelf=self;
     self.monitor=[NSTimer scheduledTimerWithTimeInterval:1 repeats:YES block:^(NSTimer *timer){(void)timer;[weakSelf updatePerformance];}];
 }
-- (void)viewDidAppear:(BOOL)animated { [super viewDidAppear:animated];start_game(); }
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    static BOOL shown;
+    if (shown) return;
+    shown = YES;
+    // The launcher first (Launcher.swift); a loader check starts at once.
+    if ([NSProcessInfo.processInfo.arguments containsObject:@"--load-only"]) start_game(); else zelda_show_launcher((__bridge void *)self);
+}
 - (BOOL)prefersStatusBarHidden { return YES; }
 - (BOOL)prefersHomeIndicatorAutoHidden { return YES; }
 - (void)retry:(UIButton *)button { (void)button; start_game(); }
 - (void)showSettings {
     __weak ZeldaController *weakSelf=self;
-    [self presentViewController:zelda_settings_sheet(^{ [touch_controls reloadPreferences];[weakSelf updatePerformance]; }) animated:YES completion:nil];
+    [self presentViewController:zelda_settings_sheet(^{ [weakSelf updatePerformance]; }) animated:YES completion:nil];
 }
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];

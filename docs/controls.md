@@ -30,6 +30,7 @@ The game language follows the system's preferred languages (Traditional Chinese,
 | Frame rate | 30 / 60 / 90 FPS | Default 60. A target is not a guarantee; pre-rendered movies still play at 30 |
 | Resolution | Original / 1080 / 720 / 640 | **Original** keeps the game's own dynamic resolution. Fixed modes render the scene at 1920×1080, 1280×720 or 1136×640 |
 | MetalFX | Off / Window / 4K | Spatially upscales only the final image: **Window** to the window's pixel size, **4K** to 3840×2160 and then fitted to the window. Both apply only when the window has more pixels than the game image |
+| Shaders | Background / Wait | Default **Background**: a shader or pipeline the game has not used before is prepared on other threads while the frame goes on without the draws that need it, so an effect seen for the first time can appear a few frames late instead of stalling the game. **Wait** keeps the earlier behavior. Also in **View → Compile New Shaders in Background** |
 | Fullscreen, Sound, Performance | Off / On | Performance shows the overlay |
 | Rumble | Off / On | Off stops rumble immediately; turning it back on does not replay old pulses. **Test** only checks the host output |
 
@@ -45,17 +46,15 @@ The overlay (⌘P) shows FPS and target, render size, CPU, GPU time and memory. 
 
 ## iPhone and iPad
 
-Without a hardware controller, touch controls are shown:
+The app opens on a launcher: the game's icon and Play on the left, the settings on the right (language, frame rate 30 or 60, render resolution, background shader compilation — see Shaders above — sound, controller rumble, the performance panel and the iCloud Drive folder for cloud saves). The settings are saved in the app's `Documents/work/settings.json`, separate from the Mac; the language takes effect at the next start.
 
-| Area | Controls |
+Without a hardware controller, a virtual gamepad in Switch button positions is shown (adapted from nxnative, see THIRD_PARTY_NOTICES.md). The button at the top centre switches between two layouts and the choice is kept:
+
+| Layout | Controls |
 | --- | --- |
-| Lower left, around the stick | Movement stick: it appears where the thumb lands and follows it past the rim, within a circle about twice its size |
-| Right half of the screen | Camera: drag to turn; hold the thumb away from where the drag began to keep turning |
-| Left side (the black bar on iPhone) | −, ZL, L, L3 (press the left stick) from top to bottom |
-| Right side | +, ZR, R, R3 (press the right stick) |
-| Lower right | A B X Y in Switch positions (A on the right); a thumb can roll from one to the next |
-| Middle left | D-pad |
+| 3D (the default) | Everything of 2D, plus a D-pad inward of and below the movement stick, L3 and R3 in the top row inward of ZL and ZR, and the camera stick: a touch landing in the right third of the screen on no key holds it, centred where it lands, and its centre follows the thumb once it passes the stick's radius |
+| 2D | ZL above L in the top-left corner, ZR above R in the top-right, − and + at the top centre, the movement stick in the bottom-left corner (it appears where the thumb lands within a circle twice its size around its resting place, follows the thumb past the rim and returns to rest on release) and A B X Y in the bottom-right corner (A on the right); a thumb can roll from one key to the next |
 
-The gear key in the middle of the side away from the camera cutout opens the settings: touch control opacity and size, camera speed, hold to keep turning, inverted camera up/down, face buttons in Switch or Xbox positions, frame rate (30 or 60), render resolution, sound and the performance panel. Changes apply at once. Touch preferences stay on the device; the others are saved in the app's `Documents/work/settings.json`, separate from the Mac. While a hardware controller is connected only the gear key remains.
+The gear key right of + opens the same settings as the launcher (except the language and the cloud folder); changes apply at once. While a hardware controller is connected only the gear key remains.
 
 The performance panel shows FPS and target; tap it to expand render size, app CPU, GPU time and physical memory. Auto-lock is suspended while the game is in front.

@@ -13,6 +13,14 @@ build)
     work/venv/bin/python script/prepare_graphics.py
     bash script/build_ios_deps.sh
     work/venv/bin/python "$PWD/core/ios/tools/gen_embed.py" work/patched work/ios/embed.S main subsdk0 sdk
+    # The game's icon (work/icon.jpg, see script/install_mac_app.sh) as the app's asset catalog: one 1024x1024 universal icon.
+    if [[ -f work/icon.jpg ]]; then
+        icons=work/ios/Assets.xcassets/AppIcon.appiconset
+        mkdir -p "$icons"
+        sips -s format png -z 1024 1024 work/icon.jpg --out "$icons/icon.png" >/dev/null
+        printf '{"images":[{"filename":"icon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}\n' > "$icons/Contents.json"
+        printf '{"info":{"author":"xcode","version":1}}\n' > work/ios/Assets.xcassets/Contents.json
+    fi
     cmake -S ios -B work/ios/build -G Xcode -DCMAKE_SYSTEM_NAME=iOS \
         -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_DEPLOYMENT_TARGET=26.0 -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DZELDA_IOS_TEAM="$ZELDA_IOS_TEAM" -DZELDA_IOS_BUNDLE="$bundle"

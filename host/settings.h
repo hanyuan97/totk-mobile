@@ -26,3 +26,8 @@ bool zelda_settings_valid_fps(unsigned fps);
 // Horizon language code the game runs in: the "language" setting when it names a language the game ships,
 // otherwise the closest match to the system's preferred languages (en-US when none matches).
 const char *zelda_language(void);
+// The "language" setting itself: a shipped language code, or "" when the game follows the system. A change takes effect at the next start
+// (zelda_language is resolved once per process). zelda_language_code lists the shipped languages in order; NULL past the end.
+const char *zelda_language_choice(void);
+bool zelda_settings_store_language(const char *code);   // "" or NULL follows the system; false for an unknown code or an unwritable file
+const char *zelda_language_code(unsigned index);

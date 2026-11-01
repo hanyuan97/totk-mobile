@@ -1,18 +1,13 @@
 #include "settings_sheet.h"
-#include "touch_controls.h"
 #include "settings.h"
 #include "game_timing.h"
 #include "audio.h"
+#include "shader_async.h"
 
 static void store_settings(void (^change)(zelda_settings_t *settings)) {
     zelda_settings_t settings = zelda_settings();
     change(&settings);
     if (!zelda_settings_store(settings)) fprintf(stderr, "SETTINGS could not be saved from the iOS menu\n");
-}
-static void store_touch(void (^change)(ZeldaTouchPreferences *preferences)) {
-    ZeldaTouchPreferences preferences = zelda_touch_preferences();
-    change(&preferences);
-    zelda_touch_store(preferences);
 }
 
 @interface ZeldaSettingsSheet : UIViewController
@@ -42,17 +37,7 @@ static void store_touch(void (^change)(ZeldaTouchPreferences *preferences)) {
         [rows.leadingAnchor constraintEqualToAnchor:readable.leadingAnchor],
         [rows.trailingAnchor constraintEqualToAnchor:readable.trailingAnchor]]];
 
-    ZeldaTouchPreferences touch = zelda_touch_preferences();
     zelda_settings_t settings = zelda_settings();
-    [self heading:@"Touch controls"];
-    [self slider:@"Opacity" value:touch.opacity low:.15 high:1 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->opacity = value; }); }];
-    [self slider:@"Size" value:touch.size low:.75 high:1.35 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->size = value; }); }];
-    [self slider:@"Camera speed" value:touch.look low:.3 high:3 change:^(float value) { store_touch(^(ZeldaTouchPreferences *p) { p->look = value; }); }];
-    [self toggle:@"Hold to keep turning" on:touch.look_hold change:^(BOOL on) { store_touch(^(ZeldaTouchPreferences *p) { p->look_hold = on; }); }];
-    [self toggle:@"Invert camera up/down" on:touch.invert_y change:^(BOOL on) { store_touch(^(ZeldaTouchPreferences *p) { p->invert_y = on; }); }];
-    [self choice:@"Face buttons" items:@[@"Switch", @"Xbox"] selected:touch.xbox_face change:^(NSInteger index) {
-        store_touch(^(ZeldaTouchPreferences *p) { p->xbox_face = index == 1; });
-    }];
     [self heading:@"Game"];
     [self choice:@"Frame rate" items:@[@"30", @"60"] selected:settings.target_fps == 30 ? 0 : settings.target_fps == 60 ? 1 : -1
         change:^(NSInteger index) {
@@ -63,6 +48,9 @@ static void store_touch(void (^change)(ZeldaTouchPreferences *preferences)) {
         change:^(NSInteger index) {
             if (zelda_set_render_scale(zelda_render_scale_factor((int)index))) store_settings(^(zelda_settings_t *s) { s->render = (int)index; });
         }];
+    [self toggle:@"Compile new shaders in background" on:!settings.shader_wait change:^(BOOL on) {
+        zelda_set_shader_wait(!on); store_settings(^(zelda_settings_t *s) { s->shader_wait = !on; });
+    }];
     [self toggle:@"Sound" on:!settings.muted change:^(BOOL on) {
         audio_mute(!on); store_settings(^(zelda_settings_t *s) { s->muted = !on; });
     }];

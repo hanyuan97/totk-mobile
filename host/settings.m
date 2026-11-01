@@ -92,6 +92,37 @@ const char *zelda_language(void) {
     return code;
 }
 
+const char *zelda_language_code(unsigned index) {
+    @autoreleasepool { return index < language_codes().count ? [language_codes()[index] UTF8String] : NULL; }
+}
+
+const char *zelda_language_choice(void) {
+    static char code[8];
+    @autoreleasepool {
+        pthread_mutex_lock(&lock); load_locked();
+        id chosen = stored[@"language"];
+        strlcpy(code, [language_codes() containsObject:chosen] ? [chosen UTF8String] : "", sizeof code);
+        pthread_mutex_unlock(&lock);
+    }
+    return code;
+}
+
+bool zelda_settings_store_language(const char *code) {
+    @autoreleasepool {
+        NSString *chosen = code && *code ? @(code) : nil;
+        if (chosen && ![language_codes() containsObject:chosen]) return false;
+        pthread_mutex_lock(&lock); load_locked();
+        NSMutableDictionary *next = [stored mutableCopy];
+        if (chosen) next[@"language"] = chosen; else [next removeObjectForKey:@"language"];
+        NSData *data = [NSJSONSerialization dataWithJSONObject:next options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
+        bool ok = data && [data writeToFile:settings_path() options:NSDataWritingAtomic error:nil];
+        if (ok) stored = next;
+        pthread_mutex_unlock(&lock);
+        if (!ok) fprintf(stderr, "SETTINGS could not write %s\n", settings_path().UTF8String);
+        return ok;
+    }
+}
+
 zelda_settings_t zelda_settings(void) {
     @autoreleasepool {
         pthread_mutex_lock(&lock); load_locked(); zelda_settings_t copy = current; pthread_mutex_unlock(&lock);

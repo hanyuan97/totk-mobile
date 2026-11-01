@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(ZeldaMobile LANGUAGES C CXX OBJC ASM)
+project(ZeldaMobile LANGUAGES C CXX OBJC Swift ASM)
 get_filename_component(ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 if(NOT ZELDA_IOS_TEAM)
   message(FATAL_ERROR "Use script/ios.sh with ZELDA_IOS_TEAM set")
@@ -12,7 +12,7 @@ set(IOS_WORK "${ROOT}/work/ios")
 set(VPX "${IOS_WORK}/deps/install")
 set(ZELDA_IOS_BUNDLE "local.zelda-mobile.ios" CACHE STRING "Development bundle identifier")
 add_executable(ZeldaMobile MACOSX_BUNDLE
-  main.m touch_controls.m settings_sheet.m "${IOS_WORK}/embed.S"
+  main.m touch_controls.m settings_sheet.m Launcher.swift "${IOS_WORK}/embed.S"
   "${HOST}/probe.c" "${HOST}/codec.c" "${HOST}/kernel.c" "${HOST}/threads.c"
   "${HOST}/timeline.c" "${HOST}/trace_writer.c" "${HOST}/services.c"
   "${HOST}/audio.c" "${HOST}/audio_mixer.c" "${HOST}/filesystem.c" "${HOST}/cloud_save.m"
@@ -29,8 +29,8 @@ add_executable(ZeldaMobile MACOSX_BUNDLE
 set_source_files_properties("${HOST}/probe.c" PROPERTIES COMPILE_DEFINITIONS "main=zelda_main")
 target_include_directories(ZeldaMobile PRIVATE "${HOST}" "${GEN}" "${CORE}/host"
   "${GFX}" "${GFX}/nvn" "${GFX}/nvn/include" "${VPX}/include" "${VPX}/include/opus")
-target_compile_options(ZeldaMobile PRIVATE -O2 -g -Wall -Wextra -Wno-deprecated-declarations
-  -mcpu=apple-m1 -ivfsoverlay "${GEN}/graphics-overlay.json"
+target_compile_options(ZeldaMobile PRIVATE
+  "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:-O2;-g;-Wall;-Wextra;-Wno-deprecated-declarations;-mcpu=apple-m1;-ivfsoverlay;${GEN}/graphics-overlay.json>"
   "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
 target_link_libraries(ZeldaMobile PRIVATE "${VPX}/lib/libvpx.a" "${VPX}/lib/libopus.a"
   "-framework UIKit" "-framework Foundation" "-framework QuartzCore" "-framework CoreGraphics"
@@ -63,7 +63,15 @@ set_source_files_properties(${MODULE_TABLES} PROPERTIES MACOSX_PACKAGE_LOCATION 
 configure_file("/System/Library/Fonts/Supplemental/AppleGothic.ttf" "${IOS_WORK}/shared.ttf" COPYONLY)
 target_sources(ZeldaMobile PRIVATE "${IOS_WORK}/shared.ttf")
 set_source_files_properties("${IOS_WORK}/shared.ttf" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+# The game's icon, when script/ios.sh made the asset catalog from work/icon.jpg (script/install_mac_app.sh says where that comes from).
+if(EXISTS "${IOS_WORK}/Assets.xcassets")
+  target_sources(ZeldaMobile PRIVATE "${IOS_WORK}/Assets.xcassets")
+  set_source_files_properties("${IOS_WORK}/Assets.xcassets" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  set_target_properties(ZeldaMobile PROPERTIES XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon)
+endif()
 set_target_properties(ZeldaMobile PROPERTIES
+  XCODE_ATTRIBUTE_SWIFT_VERSION 5.0
+  XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER "${CMAKE_CURRENT_LIST_DIR}/launcher_bridge.h"
   MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_LIST_DIR}/Info.plist"
   MACOSX_BUNDLE_GUI_IDENTIFIER "${ZELDA_IOS_BUNDLE}"
   XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${ZELDA_IOS_BUNDLE}"
