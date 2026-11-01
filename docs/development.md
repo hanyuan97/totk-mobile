@@ -25,6 +25,7 @@ Quit the game before building. Builds, the full test suite and runtime shader co
 | Install the test dependencies | `work/venv/bin/python -m pip install --no-cache-dir -r requirements/test.txt` |
 | Full Python, native and Metal suite | `./script/test.sh` |
 | Build and check loading only | `./script/build_and_run.sh --load-only` |
+| Put a double-clickable app with the game's icon in /Applications (a wrapper around `work/build/Zelda-Mobile.app`; the icon comes from `work/icon.jpg`, the NACP's `icon.jpg`) | `./script/install_mac_app.sh [folder]` |
 | Real SDK clock, audio, font and rumble paths | `./script/build_and_run.sh --time-test` (also `--codec-test`, `--font-test`, `--vibration-test`) |
 
 Run the checks related to your change first; run the native and Metal suites when you touch shared graphics, loading or threading. The full `test.sh` needs the prepared local environment and a Metal device, so it is not a resource-free CI job. The complete build log is `work/logs/build.log`.

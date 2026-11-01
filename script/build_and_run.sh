@@ -65,12 +65,26 @@ cat > "$app/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>local.zelda-mobile</string>
-<key>CFBundleName</key><string>Zelda-Mobile</string>
+<key>CFBundleName</key><string>The Legend of Zelda: Tears of the Kingdom</string>
+<key>CFBundleDisplayName</key><string>The Legend of Zelda: Tears of the Kingdom</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleExecutable</key><string>launch</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+# The game's own icon (work/icon.jpg, the NACP's 256x256 icon; script/install_mac_app.sh explains where it comes from) at every size an .icns holds.
+# Started from Terminal, the running process is zelda_probe inside this bundle, so the Dock shows this bundle's icon and name.
+# (The /Applications wrapper runs work/build/zelda_probe through ZELDA_PROBE instead; script/install_mac_app.sh says why.)
+if [[ -f work/icon.jpg && ( ! -f "$app/Resources/AppIcon.icns" || work/icon.jpg -nt "$app/Resources/AppIcon.icns" ) ]]; then
+    mkdir -p "$app/Resources" work/tmp/AppIcon.iconset
+    for n in 16 32 128 256 512; do
+        sips -s format png -z $n $n work/icon.jpg --out "work/tmp/AppIcon.iconset/icon_${n}x${n}.png" >/dev/null
+        sips -s format png -z $((n * 2)) $((n * 2)) work/icon.jpg --out "work/tmp/AppIcon.iconset/icon_${n}x${n}@2x.png" >/dev/null
+    done
+    iconutil -c icns work/tmp/AppIcon.iconset -o "$app/Resources/AppIcon.icns"
+    rm -rf work/tmp/AppIcon.iconset
+fi
 cat > "$app/MacOS/launch" <<'LAUNCH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -83,7 +97,7 @@ if [[ -z "${ZELDA_ROMFS:-}" ]]; then
     work/venv/bin/python script/prepare_render_resources.py
     export ZELDA_ROMFS="$PWD/work/romfs-host.bin"
 fi
-exec work/build/Zelda-Mobile.app/Contents/MacOS/zelda_probe work/patched >work/logs/native-probe.log 2>&1
+exec "${ZELDA_PROBE:-work/build/Zelda-Mobile.app/Contents/MacOS/zelda_probe}" work/patched >work/logs/native-probe.log 2>&1
 LAUNCH
 chmod +x "$app/MacOS/launch"
 binary="$app/MacOS/zelda_probe"

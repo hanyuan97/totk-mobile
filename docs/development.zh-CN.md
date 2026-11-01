@@ -25,6 +25,7 @@ work/venv/bin/python tools/prepare_modules.py --check
 | 安装测试依赖 | `work/venv/bin/python -m pip install --no-cache-dir -r requirements/test.txt` |
 | 完整的 Python、原生与 Metal 测试 | `./script/test.sh` |
 | 只构建并检查装载 | `./script/build_and_run.sh --load-only` |
+| 在 /Applications 放一个带游戏图标、可双击的应用（包装 `work/build/Zelda-Mobile.app`；图标来自 `work/icon.jpg`，即 NACP 的 `icon.jpg`） | `./script/install_mac_app.sh [目录]` |
 | 真实 SDK 的时钟、音频、字体与震动路径 | `./script/build_and_run.sh --time-test`（另有 `--codec-test`、`--font-test`、`--vibration-test`） |
 
 先运行与修改相关的检查；改动共享图形、装载或线程时再跑原生与 Metal 测试。完整的 `test.sh` 需要准备好的本地环境和 Metal 设备，不是无需资源的 CI 任务。完整构建日志在 `work/logs/build.log`。
