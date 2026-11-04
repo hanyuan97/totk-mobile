@@ -42,12 +42,12 @@ int main(int argc, char **argv) { @autoreleasepool {
         }
         int status; assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && !WEXITSTATUS(status));
     }
-    NSData *initial = [@"{\"target_fps\": 45, \"fullscreen\": true, \"dynamic_resolution\": \"auto\", \"metalfx_upscale\": true, \"shader_compile\": \"soon\", \"native_scale\": \"3x\", \"future\": {\"a\": 1}}" dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *initial = [@"{\"target_fps\": 45, \"fullscreen\": true, \"dynamic_resolution\": \"auto\", \"metalfx_upscale\": true, \"shader_compile\": \"soon\", \"native_scale\": \"3x\", \"volume\": 40.5, \"future\": {\"a\": 1}}" dataUsingEncoding:NSUTF8StringEncoding];
     assert([initial writeToFile:path atomically:YES]);
     zelda_settings_t settings = zelda_settings();
     // An invalid rate keeps the default; other fields still load, and the earlier boolean MetalFX switch means "window".
     assert(settings.target_fps == 60 && settings.fullscreen && settings.metalfx == ZELDA_METALFX_WINDOW);
-    assert(!settings.muted && !settings.hide_performance && settings.vibration == ZELDA_VIBRATION_ON && settings.render == ZELDA_RENDER_ORIGINAL && !settings.shader_wait && settings.native_scale == ZELDA_NATIVE_1X);
+    assert(!settings.muted && settings.volume == 100 && !settings.hide_performance && settings.vibration == ZELDA_VIBRATION_ON && settings.render == ZELDA_RENDER_ORIGINAL && !settings.shader_wait && settings.native_scale == ZELDA_NATIVE_1X);
     assert(!zelda_settings_valid_fps(120) && zelda_settings_valid_fps(30) && zelda_settings_valid_fps(90));
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 120}));
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .metalfx = 3}));
@@ -55,18 +55,19 @@ int main(int argc, char **argv) { @autoreleasepool {
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .vibration = 2}));
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .render = 4}));
     assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .native_scale = 3}));
+    assert(!zelda_settings_store((zelda_settings_t){.target_fps = 60, .volume = 101}));
     assert(zelda_settings().target_fps == 60);
     assert(zelda_settings_store((zelda_settings_t){.target_fps = 90, .fullscreen = false,
-        .metalfx = ZELDA_METALFX_4K, .muted = true, .hide_performance = true, .vibration = ZELDA_VIBRATION_ON, .render = ZELDA_RENDER_640, .shader_wait = true, .native_scale = ZELDA_NATIVE_1_5X}));
+        .metalfx = ZELDA_METALFX_4K, .muted = true, .volume = 35, .hide_performance = true, .vibration = ZELDA_VIBRATION_ON, .render = ZELDA_RENDER_640, .shader_wait = true, .native_scale = ZELDA_NATIVE_1_5X}));
     NSDictionary *saved = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path] options:0 error:nil];
     assert([saved[@"target_fps"] isEqual:@90] && [saved[@"fullscreen"] isEqual:@NO] && [saved[@"future"][@"a"] isEqual:@1] &&
            !saved[@"dynamic_resolution"] && [saved[@"metalfx_upscale"] isEqual:@"4k"] &&
-           [saved[@"sound"] isEqual:@NO] && [saved[@"performance_overlay"] isEqual:@NO] && [saved[@"vibration"] isEqual:@"on"] && [saved[@"render_resolution"] isEqual:@"640p"] &&
+           [saved[@"sound"] isEqual:@NO] && [saved[@"volume"] isEqual:@35] && [saved[@"performance_overlay"] isEqual:@NO] && [saved[@"vibration"] isEqual:@"on"] && [saved[@"render_resolution"] isEqual:@"640p"] &&
            [saved[@"shader_compile"] isEqual:@"wait"] && [saved[@"native_scale"] isEqual:@"1.5x"]);
     NSString *json = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
     assert([json containsString:@"\"sound\" : false"] && [json containsString:@"\"performance_overlay\" : false"]);   // JSON booleans
     settings = zelda_settings();
-    assert(settings.target_fps == 90 && !settings.fullscreen && settings.metalfx == ZELDA_METALFX_4K && settings.muted &&
+    assert(settings.target_fps == 90 && !settings.fullscreen && settings.metalfx == ZELDA_METALFX_4K && settings.muted && settings.volume == 35 &&
            settings.hide_performance && settings.vibration == ZELDA_VIBRATION_ON && settings.render == ZELDA_RENDER_640 && settings.shader_wait && settings.native_scale == ZELDA_NATIVE_1_5X);
     // The language choice: stored beside the other fields, an unknown code refused, "" follows the system again.
     assert(!strcmp(zelda_language_choice(), "") && !strcmp(zelda_language_code(0), "ja") && !zelda_language_code(100));

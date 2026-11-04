@@ -167,6 +167,14 @@ static void apply_sound(bool on) {
     store_settings(^(zelda_settings_t *settings) { settings->muted = !on; });
     controls_refresh();
 }
+static void apply_volume(unsigned percent, bool save) {
+    audio_output_volume(percent);
+    if (save) {
+        store_settings(^(zelda_settings_t *settings) { settings->volume = percent; });
+        LOG("SETTINGS volume=%u", percent);
+    }
+    controls_refresh();
+}
 static void apply_performance(bool shown) {
     performance_set_visible(shown);
     store_settings(^(zelda_settings_t *settings) { settings->hide_performance = !shown; });
@@ -314,7 +322,7 @@ void front_run(void (*guest)(void)) {
             [defaults removeObjectForKey:@"ZeldaSoundMuted"];
         }
         zelda_settings_t settings = zelda_settings();
-        audio_mute(settings.muted); gamepad_vibration_mode(settings.vibration);
+        audio_mute(settings.muted); audio_output_volume(settings.volume); gamepad_vibration_mode(settings.vibration);
         install_menu(actions);
         [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged
             handler:^NSEvent *(NSEvent *event) {

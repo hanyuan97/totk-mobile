@@ -233,7 +233,7 @@ static void start_game(void) {
     setenv("DM_NVN_TBDR", "0", 1);
     setenv("DM_PRESENT_LINK", "0", 1);
     if (!getenv("ZELDA_TIMEOUT_SECONDS")) setenv("ZELDA_TIMEOUT_SECONDS", "0", 1);
-    audio_mute(zelda_settings().muted);
+    audio_mute(zelda_settings().muted); audio_output_volume(zelda_settings().volume);
     NSError *error = nil;
     AVAudioSession *session = AVAudioSession.sharedInstance;
     if (![session setCategory:AVAudioSessionCategoryPlayback error:&error] || ![session setActive:YES error:&error])
@@ -454,7 +454,7 @@ static void cloud_offer(void) {
     UIApplication.sharedApplication.idleTimerDisabled=YES;
     cpu_usage=(ZeldaCPUUsage){0}; performance_reset_window();
     (void)scene;[AVAudioSession.sharedInstance setActive:YES error:nil];
-    gamepad_active(true);audio_mute(zelda_settings().muted);fprintf(stderr,"IOS_LIFECYCLE active\n");
+    gamepad_active(true);audio_mute(zelda_settings().muted);audio_output_volume(zelda_settings().volume);fprintf(stderr,"IOS_LIFECYCLE active\n");
 }
 @end
 

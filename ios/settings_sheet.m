@@ -54,6 +54,10 @@ static void store_settings(void (^change)(zelda_settings_t *settings)) {
     [self toggle:@"Sound" on:!settings.muted change:^(BOOL on) {
         audio_mute(!on); store_settings(^(zelda_settings_t *s) { s->muted = !on; });
     }];
+    // The volume follows the drag; the settings file is written once the finger lifts.
+    [self slider:@"Volume" value:settings.volume low:0 high:100
+        change:^(float value) { audio_output_volume((unsigned)lroundf(value)); }
+        done:^(float value) { unsigned percent = (unsigned)lroundf(value); store_settings(^(zelda_settings_t *s) { s->volume = percent; }); }];
     [self toggle:@"Performance panel" on:!settings.hide_performance change:^(BOOL on) {
         store_settings(^(zelda_settings_t *s) { s->hide_performance = !on; });
     }];
@@ -72,13 +76,15 @@ static void store_settings(void (^change)(zelda_settings_t *settings)) {
     [row.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     [rows addArrangedSubview:row];
 }
-- (void)slider:(NSString *)title value:(float)value low:(float)low high:(float)high change:(void (^)(float))change {
+- (void)slider:(NSString *)title value:(float)value low:(float)low high:(float)high change:(void (^)(float))change done:(void (^)(float))done {
     UISlider *slider = [UISlider new]; slider.minimumValue = low; slider.maximumValue = high; slider.value = value;
     __weak UISlider *weak_slider = slider;
     void (^changed)(void) = self.changed;
     [slider addAction:[UIAction actionWithHandler:^(UIAction *action) {
         (void)action; change(weak_slider.value); changed();
     }] forControlEvents:UIControlEventValueChanged];
+    [slider addAction:[UIAction actionWithHandler:^(UIAction *action) { (void)action; done(weak_slider.value); }]
+     forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
     [self row:title control:slider];
 }
 - (void)toggle:(NSString *)title on:(BOOL)on change:(void (^)(BOOL))change {

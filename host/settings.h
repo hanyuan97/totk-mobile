@@ -15,6 +15,7 @@ typedef struct {
     bool fullscreen;            // restore the window in full screen
     int metalfx;                // ZELDA_METALFX_* (default OFF)
     bool muted;                 // host speaker switch (default sound on)
+    unsigned volume;            // host output volume in percent, 0-100 (default 100); the guest's own volume is separate
     bool hide_performance;      // performance overlay hidden (default shown)
     int vibration;              // ZELDA_VIBRATION_* (default ON, calibrated strength)
     int render;                 // ZELDA_RENDER_* (default ORIGINAL)

@@ -170,6 +170,14 @@ static void check_queue(void) {
     assert(audio_output_callback(NULL,NULL,NULL,0,2,&quiet)==noErr);
     assert(atomic_load(&audio_read_cursor)-before==2);for(unsigned i=0;i<4;i++)assert(muted[i]==0);
     audio_mute(false);assert(!audio_muted());
+    // The host volume scales what reaches the device (squared: 50% is a quarter of the amplitude) and 100% leaves it untouched.
+    float half[2]={0.8f,-0.8f};audio_output_push(half,1);audio_output_volume(50);
+    float scaled[2];AudioBufferList level={.mNumberBuffers=1,.mBuffers={{.mNumberChannels=2,.mDataByteSize=sizeof scaled,.mData=scaled}}};
+    assert(audio_output_callback(NULL,NULL,NULL,0,1,&level)==noErr);assert(scaled[0]==0.2f && scaled[1]==-0.2f);
+    audio_output_push(half,1);audio_output_volume(0);
+    assert(audio_output_callback(NULL,NULL,NULL,0,1,&level)==noErr);assert(scaled[0]==0 && scaled[1]==0);
+    audio_output_push(half,1);audio_output_volume(100);
+    assert(audio_output_callback(NULL,NULL,NULL,0,1,&level)==noErr);assert(scaled[0]==0.8f && scaled[1]==-0.8f);
     audio_output_close();
 }
 int main(void) {

@@ -117,6 +117,11 @@ private struct LauncherView: View {
                         menu("Render resolution", LauncherModel.renders, Binding(get: { Int(m.settings.render) }, set: { m.settings.render = Int32($0) }))
                         Toggle("Compile new shaders in background", isOn: Binding(get: { !m.settings.shader_wait }, set: { m.settings.shader_wait = !$0 }))
                         Toggle("Sound", isOn: Binding(get: { !m.settings.muted }, set: { m.settings.muted = !$0 }))
+                        HStack {
+                            Text("Volume")
+                            Slider(value: Binding(get: { Double(m.settings.volume) }, set: { m.settings.volume = UInt32($0.rounded()) }), in: 0...100)
+                            Text("\(m.settings.volume)%").monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 44, alignment: .trailing)
+                        }.disabled(m.settings.muted)
                         Toggle("Controller rumble", isOn: Binding(get: { Int(m.settings.vibration) == Int(ZELDA_VIBRATION_ON) }, set: { m.settings.vibration = Int32($0 ? Int(ZELDA_VIBRATION_ON) : Int(ZELDA_VIBRATION_OFF)) }))
                         Toggle("Performance panel", isOn: Binding(get: { !m.settings.hide_performance }, set: { m.settings.hide_performance = !$0 }))
                     }

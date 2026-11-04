@@ -10,4 +10,5 @@ bool audio_set(unsigned command, uint32_t value);
 void audio_volume(float value);
 void audio_mute(bool muted);  // host speaker switch; the guest keeps mixing at the same rate
 bool audio_muted(void);
+void audio_output_volume(unsigned percent);   // host output volume, 0-100; the guest's own device volume (audio_volume) is separate
 size_t audio_update(const void *input, size_t length, void *output, size_t capacity);

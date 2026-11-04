@@ -5,7 +5,7 @@
 #include <string.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-static zelda_settings_t current = {.target_fps = 60, .vibration = ZELDA_VIBRATION_ON};
+static zelda_settings_t current = {.target_fps = 60, .volume = 100, .vibration = ZELDA_VIBRATION_ON};
 static NSArray<NSString *> *metalfx_names(void) { return @[@"off", @"window", @"4k"]; }
 static NSArray<NSString *> *vibration_names(void) { return @[@"off", @"on"]; }
 static NSArray<NSString *> *render_names(void) { return @[@"original", @"1080p", @"720p", @"640p"]; }
@@ -47,6 +47,10 @@ static void load_locked(void) {
     id sound = stored[@"sound"], performance = stored[@"performance_overlay"], vibration = stored[@"vibration"];
     if ([sound isKindOfClass:[NSNumber class]]) current.muted = ![sound boolValue];
     else if (sound) fprintf(stderr, "SETTINGS ignored sound\n");
+    id volume = stored[@"volume"];
+    if ([volume isKindOfClass:[NSNumber class]] && [volume doubleValue] >= 0 && [volume doubleValue] <= 100 && [volume doubleValue] == [volume unsignedIntValue])
+        current.volume = [volume unsignedIntValue];
+    else if (volume) fprintf(stderr, "SETTINGS ignored volume\n");
     if ([performance isKindOfClass:[NSNumber class]]) current.hide_performance = ![performance boolValue];
     else if (performance) fprintf(stderr, "SETTINGS ignored performance_overlay\n");
     mode = [vibration isKindOfClass:[NSString class]] ? [vibration_names() indexOfObject:vibration] : NSNotFound;
@@ -137,7 +141,7 @@ zelda_settings_t zelda_settings(void) {
 
 bool zelda_settings_store(zelda_settings_t settings) {
     if (!zelda_settings_valid_fps(settings.target_fps) ||
-        settings.metalfx < 0 || settings.metalfx > ZELDA_METALFX_4K || settings.vibration < 0 || settings.vibration > ZELDA_VIBRATION_ON ||
+        settings.metalfx < 0 || settings.metalfx > ZELDA_METALFX_4K || settings.volume > 100 || settings.vibration < 0 || settings.vibration > ZELDA_VIBRATION_ON ||
         settings.render < 0 || settings.render > ZELDA_RENDER_640 || settings.native_scale < 0 || settings.native_scale > ZELDA_NATIVE_2X) return false;
     @autoreleasepool {
         pthread_mutex_lock(&lock); load_locked();
@@ -145,7 +149,7 @@ bool zelda_settings_store(zelda_settings_t settings) {
         next[@"target_fps"] = @(settings.target_fps); next[@"fullscreen"] = @(settings.fullscreen);
         [next removeObjectForKey:@"dynamic_resolution"];
         next[@"metalfx_upscale"] = metalfx_names()[(NSUInteger)settings.metalfx];
-        next[@"sound"] = @((bool)!settings.muted); next[@"performance_overlay"] = @((bool)!settings.hide_performance);
+        next[@"sound"] = @((bool)!settings.muted); next[@"volume"] = @(settings.volume); next[@"performance_overlay"] = @((bool)!settings.hide_performance);
         next[@"vibration"] = vibration_names()[(NSUInteger)settings.vibration];
         next[@"render_resolution"] = render_names()[(NSUInteger)settings.render];
         next[@"shader_compile"] = settings.shader_wait ? @"wait" : @"background";

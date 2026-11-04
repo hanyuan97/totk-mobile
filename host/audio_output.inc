@@ -10,6 +10,8 @@ static uint64_t audio_overruns;
 static AudioUnit audio_unit;
 // Host-side mute: the ring is still drained at the device rate, so guest audio timing and counters are unchanged.
 static _Atomic bool audio_output_muted;
+// Host-side volume: a gain on what reaches the device, applied in the output callback so a change is heard at once.
+static _Atomic float audio_output_gain = 1;
 
 static void audio_output_pull(float *output, uint32_t frames) {
     uint32_t read = atomic_load_explicit(&audio_read_cursor, memory_order_relaxed);
@@ -39,13 +41,20 @@ static OSStatus audio_output_callback(void *context, AudioUnitRenderActionFlags 
     if (buffers->mNumberBuffers != 1 || buffers->mBuffers[0].mDataByteSize < frames * 2 * sizeof(float)) return kAudio_ParamError;
     atomic_fetch_add_explicit(&audio_callbacks, 1, memory_order_relaxed);
     audio_output_pull(buffers->mBuffers[0].mData, frames);
-    if (atomic_load_explicit(&audio_output_muted, memory_order_relaxed)) memset(buffers->mBuffers[0].mData, 0, frames * 2 * sizeof(float));
+    float *output = buffers->mBuffers[0].mData, gain = atomic_load_explicit(&audio_output_gain, memory_order_relaxed);
+    if (atomic_load_explicit(&audio_output_muted, memory_order_relaxed)) memset(output, 0, frames * 2 * sizeof(float));
+    else if (gain != 1) for (uint32_t i = 0; i < frames * 2; i++) output[i] *= gain;
     return noErr;
 }
 void audio_mute(bool muted) {
     if (atomic_exchange(&audio_output_muted, muted) != muted) fprintf(stderr, "AUDIO host mute=%d\n", muted);
 }
 bool audio_muted(void) { return atomic_load(&audio_output_muted); }
+void audio_output_volume(unsigned percent) {
+    // Squared so equal slider steps sound roughly equal: loudness follows the logarithm of amplitude, not amplitude.
+    float level = (float)(percent > 100 ? 100 : percent) / 100;
+    atomic_store(&audio_output_gain, level * level);
+}
 static void audio_output_close(void) {
     if (audio_unit) {
         AudioOutputUnitStop(audio_unit); AudioUnitUninitialize(audio_unit);

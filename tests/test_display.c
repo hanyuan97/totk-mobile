@@ -15,6 +15,7 @@ uint32_t front_vsync_handle(void);
 static bool test_muted;
 void audio_mute(bool muted) { test_muted = muted; }
 bool audio_muted(void) { return test_muted; }
+void audio_output_volume(unsigned percent) { (void)percent; }
 
 int main(void) {
     ZeldaPadState pad;

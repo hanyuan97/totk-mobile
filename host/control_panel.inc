@@ -1,5 +1,5 @@
 // Collapsible control panel in the bottom-left corner: a small handle opens the player settings (frame rate, render
-// resolution, native scale, MetalFX, shader compilation, full screen, performance overlay, sound, rumble). Changes apply at once and are saved; the menu
+// resolution, native scale, MetalFX, shader compilation, full screen, performance overlay, sound and volume, rumble). Changes apply at once and are saved; the menu
 // bar items use the same apply_* actions. The collapsed handle fades out after the pointer rests, so it does not sit
 // over the game. Controls refuse first responder and keys never reach them (the window monitor forwards them to the
 // guest), so the panel cannot take input focus from the game.
@@ -8,6 +8,7 @@ static void apply_metalfx(int mode);
 static void apply_render(int mode);
 static void apply_native(int mode);
 static void apply_sound(bool on);
+static void apply_volume(unsigned percent, bool save);
 static void apply_performance(bool shown);
 static void apply_vibration(int mode);
 static void apply_shader_wait(bool wait);
@@ -19,7 +20,8 @@ static void apply_shader_wait(bool wait);
     NSView *panel;
     NSSegmentedControl *fps, *render, *native, *metalfx, *shaders, *vibration;
     NSSwitch *fullscreen, *performance, *sound;
-    NSTextField *controller, *native_note;
+    NSSlider *volume;
+    NSTextField *controller, *native_note, *volume_note;
     NSTimer *fade, *status;
 }
 @end
@@ -64,6 +66,10 @@ static void controls_refresh(void);
 - (void)fullscreenChanged:(NSSwitch *)sender { (void)sender; [window toggleFullScreen:nil]; }
 - (void)performanceChanged:(NSSwitch *)sender { apply_performance(sender.state == NSControlStateValueOn); }
 - (void)soundChanged:(NSSwitch *)sender { apply_sound(sender.state == NSControlStateValueOn); }
+// The slider is continuous: the volume follows the drag, and the settings file is written once when the mouse is released.
+- (void)volumeChanged:(NSSlider *)sender {
+    apply_volume((unsigned)lround(sender.doubleValue), NSApp.currentEvent.type != NSEventTypeLeftMouseDragged);
+}
 - (void)testVibration:(id)sender {
     (void)sender;
     if (!gamepad_test_vibration()) controller.stringValue = @"No rumble-capable controller connected";
@@ -118,6 +124,9 @@ static void controls_refresh(void) {
     controls->fullscreen.state = controls->window.styleMask & NSWindowStyleMaskFullScreen ? NSControlStateValueOn : NSControlStateValueOff;
     controls->performance.state = performance_visible() ? NSControlStateValueOn : NSControlStateValueOff;
     controls->sound.state = audio_muted() ? NSControlStateValueOff : NSControlStateValueOn;
+    controls->volume.enabled = !audio_muted();
+    if (NSApp.currentEvent.type != NSEventTypeLeftMouseDragged) controls->volume.doubleValue = s.volume;
+    controls->volume_note.stringValue = [NSString stringWithFormat:@"%u%%", s.volume];
     char name[128]; bool haptics = false;
     gamepad_describe(name, sizeof name, &haptics);
     controls->controller.stringValue = !*name ? @"No controller connected" :
@@ -157,6 +166,15 @@ static void controls_start(NSWindow *window) {
     controls->fullscreen = control_switch(@selector(fullscreenChanged:), @"⌃⌘F");
     controls->performance = control_switch(@selector(performanceChanged:), @"⌘P");
     controls->sound = control_switch(@selector(soundChanged:), @"Mute sound output while keeping game audio processing active.");
+    controls->volume = [NSSlider sliderWithValue:100 minValue:0 maxValue:100 target:controls action:@selector(volumeChanged:)];
+    controls->volume.controlSize = NSControlSizeSmall; controls->volume.continuous = YES; controls->volume.refusesFirstResponder = YES;
+    controls->volume.toolTip = @"Output volume. The game's own volume settings still apply on top of it.";
+    controls->volume_note = control_label(@"", 10, NSFontWeightRegular, [NSColor colorWithWhite:1 alpha:0.62]);
+    controls->volume_note.alignment = NSTextAlignmentRight;
+    [controls->volume_note.widthAnchor constraintEqualToConstant:32].active = YES;
+    NSStackView *sound = [NSStackView stackViewWithViews:@[controls->sound, controls->volume, controls->volume_note]];
+    sound.spacing = 6;
+    [sound.widthAnchor constraintEqualToConstant:choice_width].active = YES;
     controls->test = [NSButton buttonWithTitle:@"Test" target:controls action:@selector(testVibration:)];
     controls->test.controlSize = NSControlSizeSmall; controls->test.font = [NSFont systemFontOfSize:11];
     controls->test.refusesFirstResponder = YES; controls->test.toolTip = @"Run both controller motors for 0.4 seconds.";
@@ -176,7 +194,7 @@ static void controls_start(NSWindow *window) {
         @[control_label(@"Shaders", 11, NSFontWeightRegular, secondary), controls->shaders],
         @[control_label(@"Fullscreen", 11, NSFontWeightRegular, secondary), controls->fullscreen],
         @[control_label(@"Performance", 11, NSFontWeightRegular, secondary), controls->performance],
-        @[control_label(@"Sound", 11, NSFontWeightRegular, secondary), controls->sound],
+        @[control_label(@"Sound", 11, NSFontWeightRegular, secondary), sound],
         @[control_label(@"Rumble", 11, NSFontWeightRegular, secondary), rumble],
     ];
     NSGridView *grid = [NSGridView gridViewWithViews:rows];
