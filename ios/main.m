@@ -56,6 +56,40 @@ static NSString *metric(double value, NSString *unit) {
 }
 
 void *front_metal_layer(void) { return (__bridge void *)metal_layer; }
+// The software keyboard (host/swkbd.c): an alert with one text field over the game. The guest thread waits for it like
+// the console waits for the keyboard applet; the virtual gamepad is released and hidden meanwhile.
+int front_text_input(const char *title, const char *sub, const char *guide, const char *initial, int max_chars, char *out, int out_cap) {
+    if (!metal_layer || !out || out_cap < 1 || NSThread.isMainThread) return -1;
+    NSString *header = title && *title ? @(title) : @"Enter text", *detail = sub && *sub ? @(sub) : nil;
+    NSString *start = initial ? @(initial) : @"", *placeholder = guide && *guide ? @(guide) : nil;
+    dispatch_semaphore_t answered = dispatch_semaphore_create(0);
+    __block NSString *text = nil;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        BOOL playing = touch_controls.playing;
+        touch_controls.playing = NO;
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:header message:detail
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+            field.text = start; field.placeholder = placeholder; field.clearButtonMode = UITextFieldViewModeWhileEditing;
+        }];
+        void (^finish)(NSString *) = ^(NSString *value) {
+            text = value; touch_controls.playing = playing; dispatch_semaphore_signal(answered);
+        };
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel
+                                                handler:^(UIAlertAction *action) { (void)action; finish(nil); }]];
+        UIAlertController *__weak weak = alert;
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) { (void)action; finish(weak.textFields.firstObject.text ?: @""); }]];
+        UIViewController *top = controller;
+        while (top.presentedViewController) top = top.presentedViewController;
+        [top presentViewController:alert animated:YES completion:nil];
+    });
+    (void)max_chars;
+    dispatch_semaphore_wait(answered, DISPATCH_TIME_FOREVER);
+    if (!text) return 0;
+    snprintf(out, (size_t)out_cap, "%s", text.UTF8String ?: "");
+    return 1;
+}
 void crash_set_wait_dump(void (*callback)(void)) { (void)callback; }
 void dm_res_report_register(void (*callback)(uint32_t, const char *)) { resource_report = callback; }
 uint32_t front_vsync_handle(void) {
