@@ -638,6 +638,16 @@ static inline void m4_end(id e) {
         op_hdr h; memcpy(&h, p, sizeof h);
         g_exec_cur''',
         '        g_exec_cur = p;': '''        if (!nvn_command_valid(p, h)) {
+            // shortcut: a called list once ran into an all-zero page (frame 27300, depth 3, cause not found). The other
+            // walkers already read a zero header as OP_END, so the replay ends that called list there too instead of
+            // stopping the game; the caller's address is logged to find who left the hole.
+            if (!h.op && !h.size && g_ret_n > 0) {
+                static unsigned holes; unsigned n = ++holes;
+                if (n == 1 || !(n & (n - 1)))
+                    MLOG("Zeroed command record in a called list address=%p depth=%d caller=%p frame=%llu; ended the list there (%u so far)",
+                         p, g_ret_n, g_ret_n <= 16 ? (const void *)g_ret[g_ret_n - 1] : NULL, (unsigned long long)atomic_load(&g_cur_frame), n);
+                g_exec_cur = NULL; return;
+            }
             MDIE("Invalid command record address=%p op=%u size=%u depth=%d", p, h.op, h.size, g_ret_n);
         }
         g_exec_cur = p;''',

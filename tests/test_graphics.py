@@ -1401,6 +1401,16 @@ int main(void) {
         self.assertIn('#include "nvn_framebuffer_fetch.inc"\n#include "nvn_sample_range.inc"', backend)
         self.assertIn('!zelda_sample_mip_disjoint(sh, b, tid, h, targets[j], views[j], has_view[j])', backend)
 
+    def test_zeroed_record_ends_only_a_called_list(self):
+        backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
+        execute = backend[backend.index('void mtl_exec('):]
+        guard = execute[execute.index('if (!nvn_command_valid(p, h)) {'):execute.index('g_exec_cur = p;')]
+        # Only an all-zero header inside a called list returns to the caller; any other invalid record, and a zeroed
+        # submitted list, still stops the game.
+        hole = guard.index('if (!h.op && !h.size && g_ret_n > 0) {')
+        self.assertLess(hole, guard.index('g_exec_cur = NULL; return;'))
+        self.assertLess(guard.index('g_exec_cur = NULL; return;'), guard.index('MDIE("Invalid command record'))
+
     def test_clear_and_query_reset_preserve_pass_boundaries(self):
         backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
         execute = backend[backend.index('void mtl_exec('):]
