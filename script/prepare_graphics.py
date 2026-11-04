@@ -1077,6 +1077,12 @@ static void bind_args(id<MTLCommandEncoder> en, int nvn_stage, int metal_vertex,
         '            | (t->d.flags & NVN_TEXTURE_FLAGS_IMAGE ? MTLTextureUsageShaderWrite : 0)':
         '            | (t->d.flags & NVN_TEXTURE_FLAGS_IMAGE ? MTLTextureUsageShaderWrite : 0) | zelda_fsc_usage(d, fmt_compressed(t->d.format) || packaged)',
         # Native-resolution rendering, ZELDA_NATIVE_SCALE (nvn_native_scale.inc, nvn_native_scale_pass.inc).
+        '            if (nvn_stage == 0 && reg == 0 && g_ui_moff != 0) { uint64_t pg = ui_mat_patch(u, mb, mo); if (pg) gpu = pg; }':
+        '''            if (nvn_stage == 0 && reg == 0 && g_ui_moff != 0) { uint64_t pg = ui_mat_patch(u, mb, mo); if (pg) gpu = pg; }
+            if (nvn_stage == 1 && reg == 0 && zelda_easu_shader(sh)) {
+                id<MTLBuffer> z_eb = nil; uint64_t z_eg = zelda_easu_uniform(u, mb, mo, &z_eb);
+                if (z_eg) { gpu = z_eg; USE(z_eb, MTLResourceUsageRead); }
+            }''',
         'static RENC rp_begin_ex(int clear_only);\nstatic RENC rp_begin(void) { return rp_begin_ex(0); }':
         'static void zelda_pass_scale(RPD *pd, int n);\nstatic RENC rp_begin_ex(int clear_only);\nstatic RENC rp_begin(void) { return rp_begin_ex(0); }',
         '        pass_dims(pd, (NSUInteger)R.rt.n, &g_pass.tw, &g_pass.th);':

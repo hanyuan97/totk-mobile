@@ -46,6 +46,27 @@ static void zelda_pass_scale(RPD *pd, int n) {
     z_pass_scale = s ? s : 1;
 }
 
+// The game's dynamic-resolution upscale (FSR 1.0 EASU: 12 texel fetches at fixed offsets) takes its output pixel from
+// the interpolated UV times the output size in its uniform block (c[4].xy, integers), not from gl_FragCoord, so
+// Ryujinx's texel-fetch scaling cannot follow it: each guest output pixel's result covers S scaled pixels (blocks of
+// 1 and 2 pixels at 1.5x) and the tap offsets land one scaled texel apart. In a scaled pass the shader runs at the
+// scaled size instead: its output size is multiplied by S and its fetches are left unscaled (the input-to-output ratio
+// and offset in c[0] do not depend on S).
+static int zelda_easu_shader(const NvShader *sh) { return !strncmp(sh->key, "cf0fd3303967d34b", 16); }
+static uint64_t zelda_easu_uniform(const p_bind_buf *u, void *mb, uint64_t mo, id<MTLBuffer> *buffer) {
+    if (z_pass_scale == 1 || u->size < 80 || u->size > 4096) return 0;
+    const uint8_t *src = [(__bridge id<MTLBuffer>)mb contents];
+    if (!src) return 0;
+    id<MTLBuffer> db; size_t off = arena_alloc(u->size, &db);
+    uint8_t *p = (uint8_t *)db.contents + off;
+    memcpy(p, src + mo, u->size);
+    uint32_t size[2]; memcpy(size, p + 64, sizeof size);
+    for (int i = 0; i < 2; i++) size[i] = (uint32_t)lround(size[i] * z_pass_scale);
+    memcpy(p + 64, size, sizeof size);
+    *buffer = db;
+    return g_cur_arena->gpu + off;
+}
+
 // Support buffer of a stage whose pass or textures are scaled (0 when all are 1x): Ryujinx's layout, measured in MSL
 // (frag_scale_count at 176, render_scale float4[73] at 192, .x read). Vertex shaders index from 1 + frag_scale_count;
 // each stage has its own copy, so the count stays 0 and every stage indexes its own scales from 1.
@@ -67,6 +88,7 @@ static uint64_t zelda_support_scaled(NvShader *sh, int nvn_stage, id<MTLBuffer> 
                 // Ryujinx: a fragment texel fetch from a texture in the target's proportions picks between the
                 // scaled texels by gl_FragCoord (a negative scale).
                 if (s != 1 && nvn_stage == 1 && rt && rt->d.width * gt->d.height == rt->d.height * gt->d.width) s = -s;
+                if (nvn_stage == 1 && zelda_easu_shader(sh)) s = 1;   // fetches in scaled texels (zelda_easu_uniform)
             }
         }
         if (s != 1) any = 1;

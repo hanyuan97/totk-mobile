@@ -1231,6 +1231,18 @@ int main(void) { @autoreleasepool {
         self.assertIn('if (sharpen < 0 || (rx <= 1.001 && ry <= 1.001)) return g_blit_pso;', filt)
         self.assertIn('return float4(clamp(r, lo, hi), m.a);', filt)
 
+    def test_scaled_easu_upscale_runs_at_the_scaled_size(self):
+        backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
+        bind = backend[backend.index('if (b->kind == NVN_RB_CBUF) {'):]
+        # The fragment uniform block is replaced before the binding is written.
+        self.assertLess(bind.index('zelda_easu_uniform(u, mb, mo, &z_eb)'), bind.index('slots[aid] = gpu;'))
+        scale = (ROOT / 'host/nvn_native_scale_pass.inc').read_text()
+        # Output size (c[4].xy) times the pass scale; the texture fetches stay unscaled.
+        self.assertIn('memcpy(size, p + 64, sizeof size);', scale)
+        self.assertIn('size[i] = (uint32_t)lround(size[i] * z_pass_scale);', scale)
+        self.assertIn('if (nvn_stage == 1 && zelda_easu_shader(sh)) s = 1;', scale)
+        self.assertLess(scale.index('s = -s;'), scale.index('zelda_easu_shader(sh)) s = 1;'))
+
     def test_shader_warm_runs_at_the_first_submission_and_records_only_canonical_pipelines(self):
         backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
         begin = backend[backend.index('void mtl_sub_begin(void) {'):]
