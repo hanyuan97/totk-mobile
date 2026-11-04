@@ -846,7 +846,16 @@ static void dispatch(const p_dispatch *dp) {
         pso_user_record("F\\t%s\\t%s\\n", shex, fs->z_fetch_identity.UTF8String);''',
         # Optional MetalFX spatial upscale before the present draw (nvn_present_scale.inc).
         'static int present_encode_m4(CBUF cb, id<MTLTexture> src, id<MTLTexture> dst, const int crop[4], int uv_i);':
-        '#include "nvn_present_scale.inc"\nstatic int present_encode_m4(CBUF cb, id<MTLTexture> src, id<MTLTexture> dst, const int crop[4], int uv_i);',
+        '#include "nvn_present_scale.inc"\n#include "nvn_present_filter.inc"\nstatic int present_encode_m4(CBUF cb, id<MTLTexture> src, id<MTLTexture> dst, const int crop[4], int uv_i);',
+        # Screen pixels covering several source texels average them and sharpen (nvn_present_filter.inc).
+        'g_present_uv[i] = [g_dev newBufferWithLength:sizeof(float) * 8 options:MTLResourceStorageModeShared];':
+        'g_present_uv[i] = [g_dev newBufferWithLength:sizeof(float) * 12 options:MTLResourceStorageModeShared];',
+        '    [en setViewport:vp]; [en setRenderPipelineState:g_blit_pso];':
+        '    [en setViewport:vp]; [en setRenderPipelineState:zelda_present_filter(dst.pixelFormat, src, cw, ch, vp, uv + 8)];',
+        '    [en setFragmentBytes:uv length:sizeof uv atIndex:0];':
+        '''    float z_uv[12]; memcpy(z_uv, uv, sizeof uv);
+    [en setRenderPipelineState:zelda_present_filter(dst.pixelFormat, src, cw, ch, vp, z_uv + 8)];
+    [en setFragmentBytes:z_uv length:sizeof z_uv atIndex:0];''',
         '    int full = vp.originX == 0 && vp.originY == 0 && vp.width == dw && vp.height == dh;\n    RPD *rp = [RPD new];':
         '''    int full = vp.originX == 0 && vp.originY == 0 && vp.width == dw && vp.height == dh;
 #if !DM_NVN_M3

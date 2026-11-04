@@ -81,6 +81,9 @@ int main(void) {
     assert(input_script_parse("render 120", &step) && step.kind == SCRIPT_RENDER && step.ms == 120);
     assert(!input_script_parse("render 49", &step) && !input_script_parse("render 201", &step) && !input_script_parse("render", &step));
     assert(input_script_parse("native 150", &step) && step.kind == SCRIPT_NATIVE && step.ms == 150);
+    assert(input_script_parse("sharpen 35", &step) && step.kind == SCRIPT_SHARPEN && step.ms == 35);
+    assert(input_script_parse("sharpen off", &step) && step.kind == SCRIPT_SHARPEN && step.ms > 100);
+    assert(!input_script_parse("sharpen 101", &step) && !input_script_parse("sharpen", &step));
     assert(!input_script_parse("native 99", &step) && !input_script_parse("native 401", &step) && !input_script_parse("native", &step));
     assert(input_script_parse("conditional 0", &step) && step.kind == SCRIPT_CONDITIONAL && step.ms == 0);
     assert(input_script_parse("conditional 1", &step) && step.ms == 1 && input_script_parse("conditional 2", &step) && step.ms == 2);

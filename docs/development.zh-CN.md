@@ -45,6 +45,7 @@ work/venv/bin/python tools/prepare_modules.py --check
 | `trace <秒> <路径>`、`dump <帧数>` | 记录帧时间线 / 转储图形命令 |
 | `fps <30\|60\|90\|120>`、`render <50..200>` | 切换帧率目标 / 内部渲染倍率 |
 | `native <100..400>` | 与 Native 设置相同地切换原生倍率（百分比），不保存 |
+| `sharpen <0..100\|off>` | 缩小出图的锐化强度（百分比）；`off` 改回双线性 |
 
 `script/scenes/first-save.input` 和 `first-save-fast.input` 会走菜单读取第一个存档。脚本不知道你的存档列表，请核对实际到达的位置。不要用脚本推进剧情或存档。
 
@@ -61,6 +62,7 @@ work/venv/bin/python tools/prepare_modules.py --check
 | `ZELDA_DAY_RATE` | 缩放游戏内昼夜时钟（0–16，0 为暂停），不影响帧率与物理 |
 | `ZELDA_WINDOW_POINTS` | 窗口尺寸，例如 `1600x900` |
 | `ZELDA_NATIVE_SCALE` | 本次运行覆盖已保存的 Native 设置（1–4，例如 `1.5`） |
+| `ZELDA_PRESENT_SHARPEN`、`ZELDA_PRESENT_FILTER` | 游戏画面（或 MetalFX 输出）比窗口大时，按屏幕像素取平均再锐化：强度 0–1（默认 `0.5`）；`ZELDA_PRESENT_FILTER=0` 保留单纯双线性 |
 | `ZELDA_RENDER_SCALE` | 实验性渲染倍率（0.5–2），正常游玩时请清除 |
 | `ZELDA_SHADER_ASYNC=0\|1`、`ZELDA_SHADER_ASYNC_BUDGET_MS` | 本次运行覆盖 Shaders 设置（1 = 后台，0 = 等待）；后台管线每帧最多等待的毫秒数，超过后先跳过对应绘制（默认 3） |
 | `ZELDA_PSO_LOG=1` | 诊断：列出绘制时新建的每条管线与着色器库，以及超过 5 ms 的后台准备步骤 |

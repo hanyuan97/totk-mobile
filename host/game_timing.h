@@ -18,5 +18,6 @@ float zelda_render_scale_factor(int mode);   // ZELDA_RENDER_* -> factor (ORIGIN
 float zelda_render_scale(void);
 // Provided by the graphics backend: MetalFX spatial upscale of the presented image (0 off).
 int zelda_present_metalfx_mode(void);
+void zelda_present_sharpen(int percent);   // downscaled present sharpening 0..100, -1 = plain bilinear (nvn_present_filter.inc)
 void zelda_native_scale_request(double scale);   // render targets at this scale from the next submission (nvn_native_scale.inc)
 void zelda_present_metalfx(int mode);   // ZELDA_METALFX_*: off, to the window, to 3840x2160

@@ -1217,6 +1217,20 @@ int main(void) { @autoreleasepool {
         self.assertIn('if (mode == 2 && out_w > cw && out_h > ch)', scale)
         self.assertIn('fmin(3840.0 / cw, 2160.0 / ch)', scale)
 
+    def test_downscaled_present_filters_after_metalfx_in_both_present_draws(self):
+        backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
+        present = backend[backend.index('static int present_encode_m4(CBUF cb, id<MTLTexture> src0'):]
+        # The filter sees the MetalFX output's size, and its parameters follow the 8 crop floats in the present buffer.
+        self.assertLess(present.index('zelda_present_upscale(cb, src,'), present.index('zelda_present_filter(dst.pixelFormat, src, cw, ch, vp, uv + 8)'))
+        self.assertIn('newBufferWithLength:sizeof(float) * 12', backend)
+        legacy = backend[backend.index('static int present_encode(id<MTLCommandBuffer> cb, id<MTLTexture> src0'):]
+        self.assertLess(legacy.index('zelda_present_filter(dst.pixelFormat, src, cw, ch, vp, z_uv + 8)'), legacy.index('drawPrimitives'))
+        self.assertIn('#include "nvn_present_filter.inc"', backend)
+        filt = (ROOT / 'host/nvn_present_filter.inc').read_text()
+        # Only a downscale changes the draw; off falls back to the bilinear pipeline.
+        self.assertIn('if (sharpen < 0 || (rx <= 1.001 && ry <= 1.001)) return g_blit_pso;', filt)
+        self.assertIn('return float4(clamp(r, lo, hi), m.a);', filt)
+
     def test_shader_warm_runs_at_the_first_submission_and_records_only_canonical_pipelines(self):
         backend = adapt_backend((CORE / 'gfx/nvn/nvn_mtl.m').read_text())
         begin = backend[backend.index('void mtl_sub_begin(void) {'):]

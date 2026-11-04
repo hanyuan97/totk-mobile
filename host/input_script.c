@@ -11,8 +11,8 @@
 #include <unistd.h>
 
 // Verbs: wait ms, down/up key, tap key [ms], shot path, mark text, trace seconds path, trace-flush, dump frames, fps target,
-// render percent (internal render scale, 50..200), native percent (render-target scale, 100..400), conditional mode
-// (0 CPU, 1 simple GPU, 2 batched GPU).
+// render percent (internal render scale, 50..200), native percent (render-target scale, 100..400), sharpen percent or off
+// (downscaled present: 0..100 sharpening, off = plain bilinear), conditional mode (0 CPU, 1 simple GPU, 2 batched GPU).
 // Names are the documented host keys, so a script reads like the keyboard mapping in the README.
 static const struct { const char *name; unsigned code; } names[] = {
     {"a", 0}, {"s", 1}, {"d", 2}, {"f", 3}, {"z", 6}, {"x", 7}, {"c", 8}, {"v", 9}, {"q", 12}, {"w", 13},
@@ -56,6 +56,11 @@ bool input_script_parse(const char *line, ZeldaScriptStep *step) {
     }
     if (!strcmp(verb, "render")) { step->kind = SCRIPT_RENDER; return fields == 2 && number(first, 200, &step->ms) && step->ms >= 50; }
     if (!strcmp(verb, "native")) { step->kind = SCRIPT_NATIVE; return fields == 2 && number(first, 400, &step->ms) && step->ms >= 100; }
+    if (!strcmp(verb, "sharpen")) {
+        step->kind = SCRIPT_SHARPEN;
+        if (fields == 2 && !strcmp(first, "off")) { step->ms = 1000; return true; }
+        return fields == 2 && number(first, 100, &step->ms);
+    }
     if (!strcmp(verb, "conditional")) { step->kind = SCRIPT_CONDITIONAL; return fields == 2 && number(first, 2, &step->ms); }
     if (!strcmp(verb, "down") || !strcmp(verb, "up")) {
         step->kind = verb[0] == 'd' ? SCRIPT_DOWN : SCRIPT_UP; return fields == 2 && key_code(first, &step->key);
@@ -100,6 +105,9 @@ static void *run(void *argument) {
                 case SCRIPT_RENDER:
                     if (!zelda_set_render_scale(step.ms / 100.0f)) die("render scale %u%% rejected", step.ms);
                     LOG("INPUT_SCRIPT render time=%.3f scale=%u%%", now, step.ms); break;
+                case SCRIPT_SHARPEN:
+                    zelda_present_sharpen(step.ms > 100 ? -1 : (int)step.ms);
+                    LOG("INPUT_SCRIPT sharpen time=%.3f percent=%d", now, step.ms > 100 ? -1 : (int)step.ms); break;
                 case SCRIPT_NATIVE:
                     zelda_native_scale_request(step.ms / 100.0);
                     LOG("INPUT_SCRIPT native time=%.3f scale=%u%%", now, step.ms); break;
