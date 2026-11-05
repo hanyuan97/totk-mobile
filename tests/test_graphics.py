@@ -1739,11 +1739,43 @@ int main(void) {
         head = (const op_hdr *)((const uint8_t *)head + head->size);
     }
     assert(draw_calls == 2 && submitted.first == 2 && submitted.count == 3 && submitted.base_instance == 0 && submitted.instances == 1);
-    for (unsigned i = 0; i < 300; i++) assert(hostseg_take(4096));
-    size_t reserved = 0; for (unsigned i = 0; i < HOSTSEG_MAX; i++) reserved += g_hostseg[i].mem != NULL;
-    assert(reserved == 2);
+    // Overflow extents live as long as the guest bytes in use when they spilled (here the BEGIN record and the jump).
+    _Alignas(8) uint8_t fixed[128] = {0}; pool_t fixed_pool = {.mem = fixed, .size = sizeof fixed};
+    NVNcommandBuffer spill; h_nvnCommandBufferInitialize(&spill, NULL); CB(&spill)->command_callback_disabled = 1;
+    size_t extents = g_hostseg_n, live = g_hostseg_live;
+    h_nvnCommandBufferAddCommandMemory(&spill, (NVNmemoryPool *)&fixed_pool, 0, 64);
+    h_nvnCommandBufferBeginRecording(&spill); uint8_t *kept = cmd_alloc(CB(&spill), 96); memset(kept + 8, 0x5a, 88);
+    assert(g_hostseg_n == extents + 1 && g_hostseg_live > live && CB(&spill)->guest_used == 24);
+    // The list still being recorded keeps its extent even if its guest bytes are handed out again.
+    hostseg_release(fixed, sizeof fixed); assert(g_hostseg_n == extents + 1 && kept[8] == 0x5a);
+    h_nvnCommandBufferEndRecording(&spill);
+    // Recording into the arena tail after the bytes in use leaves it alone.
+    h_nvnCommandBufferAddCommandMemory(&spill, (NVNmemoryPool *)&fixed_pool, 24, sizeof fixed - 24);
+    h_nvnCommandBufferBeginRecording(&spill); h_nvnCommandBufferEndRecording(&spill);
+    assert(g_hostseg_n == extents + 1);
+    // A grant over the bytes in use releases nothing by itself (grants run past what a buffer will use) ...
+    h_nvnCommandBufferAddCommandMemory(&spill, (NVNmemoryPool *)&fixed_pool, 0, sizeof fixed);
+    assert(g_hostseg_n == extents + 1 && kept[8] == 0x5a);
+    // ... new commands written over them do.
+    h_nvnCommandBufferBeginRecording(&spill); h_nvnCommandBufferEndRecording(&spill);
+    assert(g_hostseg_n == extents && g_hostseg_live == live);
+    // Released extents are named by the bad-record diagnostics.
+    char where[320]; zelda_command_describe(kept, where, sizeof where);
+    assert(strstr(where, "overflow extent") && strstr(where, "released frame"));
+    zelda_command_describe(fixed, where, sizeof where); assert(strstr(where, "not overflow memory"));
+    // A released extent reads as zeros during its quarantine and is handed out again only after it.
+    assert(((op_hdr *)kept)->op == 0 && ((op_hdr *)kept)->size == 0 && kept[8] == 0);
+    uint8_t *quarantined = hostseg_take_for(4096, NULL); assert(quarantined != kept);
+    frame += HOSTSEG_QUARANTINE;
+    uint8_t *reused = hostseg_take_for(4096, NULL); assert(reused == kept);
+    // Records whose guest memory is never handed out again persist (records[1] and [2] spilled above).
+    live = g_hostseg_live;
+    for (unsigned i = 0; i < 300; i++) { uint8_t *m = hostseg_take_for(4096, NULL); assert(m); }
+    assert(g_hostseg_live == live + 300 * 4096);
     assert(records[1][8] == 18 && records[2][8] == 19);
-    for (unsigned i = 0; i < HOSTSEG_MAX; i++) free(g_hostseg[i].mem);
+    for (size_t i = 0; i < g_hostseg_n; i++) free(g_hostseg[i].mem);
+    for (size_t i = g_hostseg_retired_head; i < g_hostseg_retired_n; i++) free(g_hostseg_retired[i].mem);
+    free(g_hostseg); free(g_hostseg_retired);
 }
 '''
         with tempfile.TemporaryDirectory(dir=ROOT / 'work/tmp') as temp:

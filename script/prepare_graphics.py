@@ -131,6 +131,8 @@ __attribute__((weak)) void zelda_perf_present(uint64_t f, double t, double gpu, 
             cmd_host_segment(o, extent); continue;
         }
         if (!o->cb || tries == 2)''',
+        '    uint8_t *p = cmd_alloc(o, 8); put_hdr(p, OP_END, 8);\n    o->recording = 0;':
+        '    uint8_t *p = cmd_alloc(o, 8); put_hdr(p, OP_END, 8);\n    o->recording = 0;\n    cmd_guest_written(o);',
         'cmd_new_segment(CB(c), hostseg_take(), HOSTSEG_SZ);':
         'cmd_host_segment(CB(c), HOSTSEG_SZ);',
         '    cmd_new_segment(CB(c), pl->mem + off, n);':
@@ -138,6 +140,7 @@ __attribute__((weak)) void zelda_perf_present(uint64_t f, double t, double gpu, 
     // main+0xbb4cc requests at least 512 bytes even at the pool tail; larger host records spill outside that arena.
     if (n > pl->size - (uint64_t)off) n = pl->size - (uint64_t)off;
     if (n < 24) die("NVN command memory tail cannot hold a jump");
+    cmd_guest_written(CB(c));   // the segment being left: what its new commands replaced is done
     cmd_new_segment(CB(c), pl->mem + off, n);
     CB(c)->guest_memory = pl->mem + off; CB(c)->guest_size = n; CB(c)->guest_used = 0; CB(c)->guest_active = 1;''',
         'VW(v)->set_levels = 1;':
@@ -638,18 +641,22 @@ static inline void m4_end(id e) {
         op_hdr h; memcpy(&h, p, sizeof h);
         g_exec_cur''',
         '        g_exec_cur = p;': '''        if (!nvn_command_valid(p, h)) {
-            // shortcut: a called list once ran into an all-zero page (frame 27300, depth 3, cause not found). The other
-            // walkers already read a zero header as OP_END, so the replay ends that called list there too instead of
-            // stopping the game; the caller's address is logged to find who left the hole.
+            // shortcut: called lists three levels deep ran into an all-zero page (frame 27300) and later into garbage
+            // (frame 101400, after overflow memory was freed); cause not found. The other walkers already read a zero
+            // header as OP_END, so the replay ends that called list there too instead of stopping the game. Overflow
+            // memory is now zero-filled and kept (nvn_command_memory.inc), and both cases report where the record lives.
             if (!h.op && !h.size && g_ret_n > 0) {
                 static unsigned holes; unsigned n = ++holes;
-                if (n == 1 || !(n & (n - 1)))
-                    MLOG("Zeroed command record in a called list address=%p depth=%d caller=%p frame=%llu; ended the list there (%u so far)",
-                         p, g_ret_n, g_ret_n <= 16 ? (const void *)g_ret[g_ret_n - 1] : NULL, (unsigned long long)atomic_load(&g_cur_frame), n);
+                if (n == 1 || !(n & (n - 1))) {
+                    MLOG("Zeroed command record in a called list; ended the list there (%u so far)", n);
+                    zelda_command_report("Zeroed command record", p, h);
+                }
                 g_exec_cur = NULL; return;
             }
+            zelda_command_report("Invalid command record", p, h);
             MDIE("Invalid command record address=%p op=%u size=%u depth=%d", p, h.op, h.size, g_ret_n);
         }
+        z_last_record = p;
         g_exec_cur = p;''',
         # Pass dumps also mark every copy/compute encoder that opens outside a render pass, so gaps can be attributed.
         'static void blit_note(void) { if (g_enc) PD("E %llu \u62f7\u8d1d / \u7f13\u51b2\u66f4\u65b0\u7ed3\u675f\u6e32\u67d3\u901a\u9053", g_stat_pass); }':
@@ -883,7 +890,21 @@ static void dispatch(const p_dispatch *dp) {
             if (!atomic_exchange(&reported[k->attr[a].fmt & 0xff], 1)) MLOG("ERROR: Unmapped vertex format %#x vs=%s attribute=%d", k->attr[a].fmt, vs->key, a);
         }''',
         'void mtl_exec(const uint8_t *p) {':
-        '''#include "nvn_conditional_mtl.inc"
+        '''// The last valid record replayed (a jump or call when a list runs into bad memory) and where a bad record lives
+// (hle_nvn.c, nvn_command_memory.inc), for the diagnostics below.
+static const uint8_t *z_last_record;
+void zelda_command_describe(const void *address, char *out, size_t capacity);
+static void zelda_command_report(const char *what, const uint8_t *p, op_hdr h) {
+    char where[320]; zelda_command_describe(p, where, sizeof where);
+    op_hdr last = {0, 0}; if (z_last_record) memcpy(&last, z_last_record, sizeof last);
+    MLOG("%s address=%p op=%u size=%u depth=%d frame=%llu; previous record %p op=%u size=%u; %s", what, p, h.op, h.size, g_ret_n,
+         (unsigned long long)atomic_load(&g_cur_frame), z_last_record, last.op, last.size, where);
+    for (int i = g_ret_n < 16 ? g_ret_n : 16; i-- > 0;) {
+        zelda_command_describe(g_ret[i], where, sizeof where);
+        MLOG("  return %d to %p: %s", i, g_ret[i], where);
+    }
+}
+#include "nvn_conditional_mtl.inc"
 #include "nvn_query_gpu.inc"
 #include "nvn_color_clear.inc"
 #include "nvn_depth_clear.inc"
