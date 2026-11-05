@@ -118,7 +118,7 @@ void front_run(void (*guest)(void)) {
     cloud_save_wait();
     dispatch_sync(dispatch_get_main_queue(), ^{
         status_label.hidden = YES; retry_button.hidden = YES; guest_running = YES;
-        gamepad_start(); gamepad_vibration_mode(zelda_settings().vibration);
+        gamepad_start(); gamepad_vibration_mode(zelda_settings().vibration); gamepad_motion(!zelda_settings().motion_off);
         touch_controls.playing = YES;
     });
     guest();

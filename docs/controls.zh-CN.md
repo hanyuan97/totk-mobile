@@ -34,6 +34,7 @@
 | Shaders | Background / Wait | 默认 **Background**：游戏没用过的着色器或管线在其他线程准备，这期间画面照常继续、只是先不画需要它的物体，所以第一次出现的效果可能晚几帧显示，但游戏不会卡住。**Wait** 保持原来的做法。也可从 **View → Compile New Shaders in Background** 切换 |
 | Fullscreen、Sound、Performance | Off / On | Performance 显示性能面板 |
 | Rumble | Off / On | 关闭后立即停止震动，再开启不会重放旧的震动；**Test** 只检查宿主输出 |
+| Gyro aiming | Off / On | 默认开启。带陀螺仪的手柄（DualSense、DualShock 4、Pro 手柄）驱动游戏的体感传感器，游戏自己的「体感操作」选项（弓箭瞄准、相机）因此可用；面板的手柄一行会显示所连手柄有没有陀螺仪。关闭后传感器停止，游戏读到的传感器保持静止。保存为 `"motion_controls"` |
 
 旧的设置文件会自动迁移：`896p`/`balanced` 变为原版，`performance` 变为 720，已删除的 `480p` 变为 640，旧的 MetalFX 开启变为 Window，旧的震动强度都视为开。未知字段会保留。
 
@@ -47,7 +48,9 @@
 
 ## iPhone 与 iPad
 
-应用打开后先是启动器：左边是游戏图标和「Play」，右边是设置（语言、帧率 30 或 60、渲染分辨率、后台编译着色器——见上文 Shaders——声音、手柄震动、性能面板，以及云存档用的 iCloud 云盘文件夹）。设置保存在应用的 `Documents/work/settings.json`，与 Mac 分开；语言在下次启动时生效。
+应用打开后先是启动器：左边是游戏图标和「Play」，右边是设置（语言、帧率 30 或 60、渲染分辨率、后台编译着色器——见上文 Shaders——声音、手柄震动、体感瞄准、性能面板，以及云存档用的 iCloud 云盘文件夹）。设置保存在应用的 `Documents/work/settings.json`，与 Mac 分开；语言在下次启动时生效。
+
+没有实体手柄传来体感数据时，体感瞄准用 iPhone 自己的陀螺仪，就像掌机模式的 Switch；带陀螺仪的手柄有数据时由手柄接管。体感用在哪里由游戏的「体感操作」选项决定。
 
 未连接实体手柄时显示按 Switch 键位排列的虚拟手柄（改自 nxnative，见 THIRD_PARTY_NOTICES.md）。顶部中间的按钮在两种布局之间切换，选择会被记住：
 

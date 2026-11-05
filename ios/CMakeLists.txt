@@ -36,7 +36,7 @@ target_link_libraries(ZeldaMobile PRIVATE "${VPX}/lib/libvpx.a" "${VPX}/lib/libo
   "-framework UIKit" "-framework Foundation" "-framework QuartzCore" "-framework CoreGraphics"
   "-framework CoreVideo" "-framework Metal" "-framework MetalFX"
   "-framework ImageIO" "-framework UniformTypeIdentifiers" "-framework AudioToolbox"
-  "-framework AVFAudio" "-framework GameController" "-framework CoreHaptics")
+  "-framework AVFAudio" "-framework GameController" "-framework CoreHaptics" "-framework CoreMotion")
 # On-device shader compiler (script/prepare_runtime_shaders.sh): the translator as a NativeAOT library, and SPIRV-Cross's
 # command line behind spirv_msl.cpp, built from the same sources as the Mac tool.
 set(SPIRV "${IOS_WORK}/deps/SPIRV-Cross")

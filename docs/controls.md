@@ -34,6 +34,7 @@ The game language follows the system's preferred languages (Traditional Chinese,
 | Shaders | Background / Wait | Default **Background**: a shader or pipeline the game has not used before is prepared on other threads while the frame goes on without the draws that need it, so an effect seen for the first time can appear a few frames late instead of stalling the game. **Wait** keeps the earlier behavior. Also in **View → Compile New Shaders in Background** |
 | Fullscreen, Sound, Performance | Off / On | Performance shows the overlay |
 | Rumble | Off / On | Off stops rumble immediately; turning it back on does not replay old pulses. **Test** only checks the host output |
+| Gyro aiming | Off / On | Default On. A controller with a gyro (DualSense, DualShock 4, Pro Controller) drives the game's motion sensor, so the game's own **Motion Controls** option (aiming the bow, the camera) works; the panel's controller line says whether the connected controller has one. Off stops the sensors and the game's sensor lies still. Saved as `"motion_controls"` |
 
 Older settings files are migrated automatically: `896p`/`balanced` become Original, `performance` becomes 720, the removed `480p` becomes 640, an old MetalFX On becomes Window, and old rumble strengths read as On. Unknown fields are kept.
 
@@ -47,7 +48,9 @@ The overlay (⌘P) shows FPS and target, render size, CPU, GPU time and memory. 
 
 ## iPhone and iPad
 
-The app opens on a launcher: the game's icon and Play on the left, the settings on the right (language, frame rate 30 or 60, render resolution, background shader compilation — see Shaders above — sound, controller rumble, the performance panel and the iCloud Drive folder for cloud saves). The settings are saved in the app's `Documents/work/settings.json`, separate from the Mac; the language takes effect at the next start.
+The app opens on a launcher: the game's icon and Play on the left, the settings on the right (language, frame rate 30 or 60, render resolution, background shader compilation — see Shaders above — sound, controller rumble, gyro aiming, the performance panel and the iCloud Drive folder for cloud saves). The settings are saved in the app's `Documents/work/settings.json`, separate from the Mac; the language takes effect at the next start.
+
+Gyro aiming uses the iPhone's own gyro, as a Switch held in handheld, while no hardware controller sends motion; a controller with a gyro takes over while it does. The game's **Motion Controls** option decides what the motion is used for.
 
 Without a hardware controller, a virtual gamepad in Switch button positions is shown (adapted from nxnative, see THIRD_PARTY_NOTICES.md). The button at the top centre switches between two layouts and the choice is kept:
 

@@ -1,5 +1,5 @@
 // Collapsible control panel in the bottom-left corner: a small handle opens the player settings (frame rate, render
-// resolution, native scale, MetalFX, shader compilation, full screen, performance overlay, sound and volume, rumble). Changes apply at once and are saved; the menu
+// resolution, native scale, MetalFX, shader compilation, full screen, performance overlay, sound and volume, rumble, gyro aiming). Changes apply at once and are saved; the menu
 // bar items use the same apply_* actions. The collapsed handle fades out after the pointer rests, so it does not sit
 // over the game. Controls refuse first responder and keys never reach them (the window monitor forwards them to the
 // guest), so the panel cannot take input focus from the game.
@@ -11,6 +11,7 @@ static void apply_sound(bool on);
 static void apply_volume(unsigned percent, bool save);
 static void apply_performance(bool shown);
 static void apply_vibration(int mode);
+static void apply_motion(bool on);
 static void apply_shader_wait(bool wait);
 
 @interface ZeldaControls : NSObject {
@@ -19,7 +20,7 @@ static void apply_shader_wait(bool wait);
     NSButton *handle, *collapse, *test;
     NSView *panel;
     NSSegmentedControl *fps, *render, *native, *metalfx, *shaders, *vibration;
-    NSSwitch *fullscreen, *performance, *sound;
+    NSSwitch *fullscreen, *performance, *sound, *motion;
     NSSlider *volume;
     NSTextField *controller, *native_note, *volume_note;
     NSTimer *fade, *status;
@@ -66,6 +67,7 @@ static void controls_refresh(void);
 - (void)fullscreenChanged:(NSSwitch *)sender { (void)sender; [window toggleFullScreen:nil]; }
 - (void)performanceChanged:(NSSwitch *)sender { apply_performance(sender.state == NSControlStateValueOn); }
 - (void)soundChanged:(NSSwitch *)sender { apply_sound(sender.state == NSControlStateValueOn); }
+- (void)motionChanged:(NSSwitch *)sender { apply_motion(sender.state == NSControlStateValueOn); }
 // The slider is continuous: the volume follows the drag, and the settings file is written once when the mouse is released.
 - (void)volumeChanged:(NSSlider *)sender {
     apply_volume((unsigned)lround(sender.doubleValue), NSApp.currentEvent.type != NSEventTypeLeftMouseDragged);
@@ -127,10 +129,11 @@ static void controls_refresh(void) {
     controls->volume.enabled = !audio_muted();
     if (NSApp.currentEvent.type != NSEventTypeLeftMouseDragged) controls->volume.doubleValue = s.volume;
     controls->volume_note.stringValue = [NSString stringWithFormat:@"%u%%", s.volume];
+    controls->motion.state = s.motion_off ? NSControlStateValueOff : NSControlStateValueOn;
     char name[128]; bool haptics = false;
     gamepad_describe(name, sizeof name, &haptics);
     controls->controller.stringValue = !*name ? @"No controller connected" :
-        [NSString stringWithFormat:@"%s · %@", name, haptics ? @"Rumble available" : @"Rumble unavailable"];
+        [NSString stringWithFormat:@"%s · %@ · %@", name, haptics ? @"Rumble available" : @"Rumble unavailable", gamepad_has_motion() ? @"Gyro" : @"No gyro"];
     controls->test.enabled = haptics && s.vibration == ZELDA_VIBRATION_ON;
 }
 
@@ -166,6 +169,8 @@ static void controls_start(NSWindow *window) {
     controls->fullscreen = control_switch(@selector(fullscreenChanged:), @"⌃⌘F");
     controls->performance = control_switch(@selector(performanceChanged:), @"⌘P");
     controls->sound = control_switch(@selector(soundChanged:), @"Mute sound output while keeping game audio processing active.");
+    controls->motion = control_switch(@selector(motionChanged:),
+        @"Aim with the controller's gyro (DualSense, DualShock 4, Pro Controller). The game's own Motion Controls option still applies.");
     controls->volume = [NSSlider sliderWithValue:100 minValue:0 maxValue:100 target:controls action:@selector(volumeChanged:)];
     controls->volume.controlSize = NSControlSizeSmall; controls->volume.continuous = YES; controls->volume.refusesFirstResponder = YES;
     controls->volume.toolTip = @"Output volume. The game's own volume settings still apply on top of it.";
@@ -196,6 +201,7 @@ static void controls_start(NSWindow *window) {
         @[control_label(@"Performance", 11, NSFontWeightRegular, secondary), controls->performance],
         @[control_label(@"Sound", 11, NSFontWeightRegular, secondary), sound],
         @[control_label(@"Rumble", 11, NSFontWeightRegular, secondary), rumble],
+        @[control_label(@"Gyro aiming", 11, NSFontWeightRegular, secondary), controls->motion],
     ];
     NSGridView *grid = [NSGridView gridViewWithViews:rows];
     grid.rowSpacing = 8; grid.columnSpacing = 8;

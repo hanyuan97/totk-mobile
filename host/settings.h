@@ -21,6 +21,7 @@ typedef struct {
     int render;                 // ZELDA_RENDER_* (default ORIGINAL)
     bool shader_wait;           // wait for new shaders to compile instead of skipping their draws meanwhile (default off)
     int native_scale;           // ZELDA_NATIVE_* (default 1X); takes effect at the next start
+    bool motion_off;            // gyro aiming off: the game's six-axis sensor lies flat (default on; host/gamepad.h)
 } zelda_settings_t;
 
 zelda_settings_t zelda_settings(void);

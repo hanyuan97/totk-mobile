@@ -6,6 +6,13 @@
 #include "dm_padmap.h"
 #include <stdio.h>
 #include <time.h>
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+#import <CoreMotion/CoreMotion.h>
+#import <UIKit/UIKit.h>
+#include <stdatomic.h>
+#include "motion_fusion.h"
+#endif
 
 static GCController *selected;
 static id connect_observer, disconnect_observer;
@@ -21,6 +28,84 @@ static int haptic_test_ticks;
 static NSTimer *haptic_timer;
 static bool haptic_trace;
 static uint64_t face_bits[4];   // Switch button for GameController A / B / X / Y, or 0 to use the layout table.
+static bool motion_on = true;   // setting "motion_controls": the gyro drives the game's six-axis sensor
+static bool controller_motion_live;
+
+// ---- Motion (gyro aiming), adapted from nxnative's dm/host/motion_apple.h and DmGamepad.m (MIT, THIRD_PARTY_NOTICES.md) ----
+// A controller with a gyroscope (DualSense, DualShock 4, Switch Pro) passes every motion update on with the total acceleration (G, gravity's
+// direction) and the rotation rate (rad/s); GameController reports both in the Switch frame. DualSense / DualShock 4 sensors stay off until
+// asked for, and iOS switches them off in the background, so they are switched on again whenever the app becomes active.
+static void controller_motion_stop(GCController *controller) {
+    GCMotion *motion = controller.motion;
+    if (motion) { motion.valueChangedHandler = nil; if (motion.sensorsRequireManualActivation) motion.sensorsActive = NO; }
+    controller_motion_live = false;
+    input_motion_clear(INPUT_MOTION_CONTROLLER);
+}
+static void controller_motion_start(GCController *controller) {
+    GCMotion *motion = controller.motion;
+    if (!motion_on || !active || !motion || !motion.hasRotationRate) return;
+    if (motion.sensorsRequireManualActivation) motion.sensorsActive = YES;
+    if (motion.valueChangedHandler) return;
+    motion.valueChangedHandler = ^(GCMotion *m) {
+        float acc[3], rot[3] = {(float)m.rotationRate.x, (float)m.rotationRate.y, (float)m.rotationRate.z};
+        if (m.hasGravityAndUserAcceleration) {
+            acc[0] = (float)(m.gravity.x + m.userAcceleration.x); acc[1] = (float)(m.gravity.y + m.userAcceleration.y); acc[2] = (float)(m.gravity.z + m.userAcceleration.z);
+        } else { acc[0] = (float)m.acceleration.x; acc[1] = (float)m.acceleration.y; acc[2] = (float)m.acceleration.z; }
+        // Some macOS controller drivers advertise motion but send only zeroes: no source until real data arrives.
+        if (!controller_motion_live) {
+            if (!acc[0] && !acc[1] && !acc[2] && !rot[0] && !rot[1] && !rot[2]) return;
+            controller_motion_live = true;
+            fprintf(stderr, "MOTION controller gyro live\n");
+        }
+        input_motion(INPUT_MOTION_CONTROLLER, acc, rot);
+    };
+}
+#if TARGET_OS_IPHONE
+// The phone's own gyro: the phone is the console held in handheld, so its device motion (fused gravity and user acceleration, 100 Hz, no
+// permission prompt) drives the sensor while no controller sends fresh motion, turned into the Switch frame for the screen's orientation.
+static CMMotionManager *phone_motion;
+static _Atomic int phone_orientation = 3;   // UIInterfaceOrientation; the app runs in landscape
+static unsigned orientation_ticks;
+static void phone_orientation_update(void) {
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes)
+        if ([scene isKindOfClass:UIWindowScene.class]) { atomic_store(&phone_orientation, (int)((UIWindowScene *)scene).effectiveGeometry.interfaceOrientation); return; }
+}
+static void phone_motion_stop(void) {
+    if (phone_motion.deviceMotionActive) { [phone_motion stopDeviceMotionUpdates]; fprintf(stderr, "MOTION phone gyro off\n"); }
+    input_motion_clear(INPUT_MOTION_PHONE);
+}
+static void phone_motion_start(void) {
+    if (!motion_on || !active) return;
+    if (!phone_motion) phone_motion = [CMMotionManager new];
+    if (phone_motion.deviceMotionActive) return;
+    if (!phone_motion.deviceMotionAvailable) { fprintf(stderr, "MOTION phone has no device motion\n"); return; }
+    phone_orientation_update();
+    phone_motion.deviceMotionUpdateInterval = 1.0 / 100;
+    NSOperationQueue *queue = [NSOperationQueue new]; queue.maxConcurrentOperationCount = 1;
+    [phone_motion startDeviceMotionUpdatesToQueue:queue withHandler:^(CMDeviceMotion *d, NSError *error) {
+        (void)error; if (!d) return;
+        float a[3] = {(float)(d.gravity.x + d.userAcceleration.x), (float)(d.gravity.y + d.userAcceleration.y), (float)(d.gravity.z + d.userAcceleration.z)};
+        float w[3] = {(float)d.rotationRate.x, (float)d.rotationRate.y, (float)d.rotationRate.z}, as[3], ws[3];
+        int orientation = atomic_load(&phone_orientation);
+        motion_phone_to_switch(orientation, a, as); motion_phone_to_switch(orientation, w, ws);
+        input_motion(INPUT_MOTION_PHONE, as, ws);
+    }];
+    fprintf(stderr, "MOTION phone gyro on\n");
+}
+#else
+static void phone_motion_start(void) {}
+static void phone_motion_stop(void) {}
+#endif
+static void motion_refresh(void) {
+    if (motion_on && active) { if (selected) controller_motion_start(selected); phone_motion_start(); }
+    else { if (selected) controller_motion_stop(selected); phone_motion_stop(); }
+}
+void gamepad_motion(bool on) {
+    if (on == motion_on) return;
+    motion_on = on; input_motion_enable(on); motion_refresh();
+    fprintf(stderr, "MOTION %s\n", on ? "on" : "off");
+}
+bool gamepad_has_motion(void) { return selected.motion.hasRotationRate; }
 
 static void haptics_close(void) {
     haptic_generation++;
@@ -77,6 +162,9 @@ static bool haptic_player(unsigned channel, GCHapticsLocality locality) {
 }
 static void haptics_tick(void) {
     haptic_ticks++;
+#if TARGET_OS_IPHONE
+    if (++orientation_ticks >= 60) { orientation_ticks = 0; if (phone_motion.deviceMotionActive) phone_orientation_update(); }
+#endif
     if (!active || !selected.haptics) return;
     ZeldaVibrationValue values[2]; vibration_take(values);
     bool xbox = [selected.extendedGamepad isKindOfClass:GCXboxGamepad.class];
@@ -196,11 +284,14 @@ static void select_controller(void) {
             letters ? "printed letter" : "layout", pad.buttonA.sfSymbolsName.UTF8String ?: "?", pad.buttonB.sfSymbolsName.UTF8String ?: "?",
             pad.buttonX.sfSymbolsName.UTF8String ?: "?", pad.buttonY.sfSymbolsName.UTF8String ?: "?");
         fprintf(stderr, "HAPTIC controller capability=%s\n", controller.haptics ? "available" : "unavailable");
+        fprintf(stderr, "MOTION controller gyro %s\n", controller.motion.hasRotationRate ? "available" : "unavailable");
+        controller_motion_start(controller);
         publish(controller, controller.extendedGamepad); break;
     }
 }
 void gamepad_active(bool value) {
     active = value;
+    motion_refresh();
     haptics_close(); haptic_failures = 0; haptic_retry_at = 0;
     if (!value) input_clear();
     else if (selected) publish(selected, selected.extendedGamepad);
@@ -213,12 +304,13 @@ void gamepad_start(void) {
     disconnect_observer = [center addObserverForName:GCControllerDidDisconnectNotification object:nil queue:NSOperationQueue.mainQueue
         usingBlock:^(NSNotification *notification) {
             if (notification.object == selected) {
+                controller_motion_stop(selected);
                 selected.extendedGamepad.valueChangedHandler = nil; selected = nil;
                 haptics_close();
                 input_controller_clear(); fprintf(stderr, "GAMEPAD disconnected\n"); select_controller();
             }
         }];
-    active = true; select_controller();
+    active = true; select_controller(); phone_motion_start();
     vibration_active(active);
     haptic_timer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) { (void)timer; haptics_tick(); }];
     [NSRunLoop.mainRunLoop addTimer:haptic_timer forMode:NSRunLoopCommonModes];
@@ -226,6 +318,8 @@ void gamepad_start(void) {
 }
 void gamepad_stop(void) {
     [haptic_timer invalidate]; haptic_timer = nil;
+    if (selected) controller_motion_stop(selected);
+    phone_motion_stop();
     selected.extendedGamepad.valueChangedHandler = nil; selected = nil;
     if (connect_observer) [NSNotificationCenter.defaultCenter removeObserver:connect_observer];
     if (disconnect_observer) [NSNotificationCenter.defaultCenter removeObserver:disconnect_observer];

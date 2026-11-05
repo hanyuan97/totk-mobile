@@ -123,6 +123,7 @@ private struct LauncherView: View {
                             Text("\(m.settings.volume)%").monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 44, alignment: .trailing)
                         }.disabled(m.settings.muted)
                         Toggle("Controller rumble", isOn: Binding(get: { Int(m.settings.vibration) == Int(ZELDA_VIBRATION_ON) }, set: { m.settings.vibration = Int32($0 ? Int(ZELDA_VIBRATION_ON) : Int(ZELDA_VIBRATION_OFF)) }))
+                        Toggle("Gyro aiming", isOn: Binding(get: { !m.settings.motion_off }, set: { m.settings.motion_off = !$0 }))
                         Toggle("Performance panel", isOn: Binding(get: { !m.settings.hide_performance }, set: { m.settings.hide_performance = !$0 }))
                     }
                     CloudSavesSection()

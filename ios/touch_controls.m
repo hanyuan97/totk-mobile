@@ -1,5 +1,5 @@
 // Virtual gamepad in Nintendo button positions, adapted from nxnative's dm/ios/Sources/DmGamepad.m (MIT, see THIRD_PARTY_NOTICES.md):
-// the virtual pad only; hardware controllers are host/gamepad.m's, and the phone's motion sensors are not used.
+// the virtual pad only; hardware controllers and the phone's motion sensors are host/gamepad.m's.
 //   Two layouts; one tap on the layout button at the top centre (labelled with the current layout, "2D" / "3D") goes to the next, and the choice is kept in NSUserDefaults.
 //   2D (simple): top corners ZL above L (one column), ZR above R likewise, teardrops with the tip toward the screen corner; − and + side by side at the top centre; the left stick in the bottom-left corner
 //     (it floats: a touch within twice the ring radius of its resting place holds it, centred where it lands, and its centre follows the thumb past the rim while

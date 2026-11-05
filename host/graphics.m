@@ -191,6 +191,12 @@ static void apply_vibration(int mode) {
     LOG("SETTINGS vibration=%d", mode);
     controls_refresh();
 }
+static void apply_motion(bool on) {
+    gamepad_motion(on);
+    store_settings(^(zelda_settings_t *settings) { settings->motion_off = !on; });
+    LOG("SETTINGS motion_controls=%d", on);
+    controls_refresh();
+}
 
 @interface ZeldaWindowDelegate : NSObject <NSWindowDelegate>
 @end
@@ -323,6 +329,7 @@ void front_run(void (*guest)(void)) {
         }
         zelda_settings_t settings = zelda_settings();
         audio_mute(settings.muted); audio_output_volume(settings.volume); gamepad_vibration_mode(settings.vibration);
+        gamepad_motion(!settings.motion_off);
         install_menu(actions);
         [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown | NSEventMaskKeyUp | NSEventMaskFlagsChanged
             handler:^NSEvent *(NSEvent *event) {

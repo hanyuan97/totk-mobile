@@ -71,6 +71,9 @@ static void load_locked(void) {
     mode = [native isKindOfClass:[NSString class]] ? [native_names() indexOfObject:native] : NSNotFound;
     if (mode != NSNotFound) current.native_scale = (int)mode;
     else if (native) fprintf(stderr, "SETTINGS ignored native_scale\n");
+    id motion = stored[@"motion_controls"];
+    if ([motion isKindOfClass:[NSNumber class]]) current.motion_off = ![motion boolValue];
+    else if (motion) fprintf(stderr, "SETTINGS ignored motion_controls\n");
 }
 
 static NSString *system_language(void) {
@@ -154,6 +157,7 @@ bool zelda_settings_store(zelda_settings_t settings) {
         next[@"render_resolution"] = render_names()[(NSUInteger)settings.render];
         next[@"shader_compile"] = settings.shader_wait ? @"wait" : @"background";
         next[@"native_scale"] = native_names()[(NSUInteger)settings.native_scale];
+        next[@"motion_controls"] = @((bool)!settings.motion_off);
         NSData *data = [NSJSONSerialization dataWithJSONObject:next options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:nil];
         bool ok = data && [data writeToFile:settings_path() options:NSDataWritingAtomic error:nil];
         if (ok) { stored = next; current = settings; }

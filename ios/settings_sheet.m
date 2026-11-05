@@ -3,6 +3,7 @@
 #include "game_timing.h"
 #include "audio.h"
 #include "shader_async.h"
+#include "gamepad.h"
 
 static void store_settings(void (^change)(zelda_settings_t *settings)) {
     zelda_settings_t settings = zelda_settings();
@@ -58,6 +59,10 @@ static void store_settings(void (^change)(zelda_settings_t *settings)) {
     [self slider:@"Volume" value:settings.volume low:0 high:100
         change:^(float value) { audio_output_volume((unsigned)lroundf(value)); }
         done:^(float value) { unsigned percent = (unsigned)lroundf(value); store_settings(^(zelda_settings_t *s) { s->volume = percent; }); }];
+    // The phone's gyro, or a connected controller's; the game's own Motion Controls option still applies.
+    [self toggle:@"Gyro aiming" on:!settings.motion_off change:^(BOOL on) {
+        gamepad_motion(on); store_settings(^(zelda_settings_t *s) { s->motion_off = !on; });
+    }];
     [self toggle:@"Performance panel" on:!settings.hide_performance change:^(BOOL on) {
         store_settings(^(zelda_settings_t *s) { s->hide_performance = !on; });
     }];

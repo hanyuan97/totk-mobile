@@ -63,6 +63,30 @@ int main(void) {
     input_controller_clear();
     assert(input_states(&pad, 1, 0, 1) == 1 && pad.buttons == 2 && pad.lx == 16384 && !pad.rx);
     input_clear(); assert(input_states(&pad, 1, 0, 1) == 1 && !pad.buttons && !pad.lx);
+    // Six-axis sensor: flat and still with no source, the newest sample in every entry numbered 5 ms apart; only player 1's FullKey handle.
+    ZeldaSixAxisState six[4];
+    assert(input_six_axis_states(six, 4, 0) == 4);
+    for (int i = 0; i < 4; i++) {
+        assert(six[i].attributes == 1 && six[i].delta_ns == 5000000 && six[i].sampling == six[0].sampling - i);
+        assert(!six[i].acc[0] && !six[i].acc[1] && six[i].acc[2] == -1 && !six[i].gyro[2] && six[i].dir[0] == 1 && six[i].dir[4] == 1 && six[i].dir[8] == 1);
+    }
+    assert(!input_six_axis_states(six, 1, 1 << 8) && !six[0].attributes && !input_six_axis_states(six, 1, 3) && !input_six_axis_states(six, 0, 0));
+    // The phone turning about its screen's normal reads as the console's yaw, in revolutions per second.
+    const float flat[3] = {0, 0, -1}, yaw[3] = {0, 0, 2 * (float)M_PI}, pitch[3] = {(float)M_PI, 0, 0};
+    input_motion(INPUT_MOTION_PHONE, flat, yaw); input_motion(INPUT_MOTION_PHONE, flat, yaw);
+    assert(input_six_axis_states(six, 2, 0) == 2 && fabsf(six[0].gyro[2] - 1) < 1e-5f && fabsf(six[1].gyro[2] - 1) < 1e-5f && six[0].acc[2] == -1);
+    // A controller's fresh samples win over the phone's; when it stops, the phone's come back.
+    input_motion(INPUT_MOTION_CONTROLLER, flat, pitch);
+    assert(input_six_axis_states(six, 1, 0) == 1 && fabsf(six[0].gyro[0] - .5f) < 1e-5f && !six[0].gyro[2]);
+    input_motion_clear(INPUT_MOTION_CONTROLLER);
+    assert(input_six_axis_states(six, 1, 0) == 1 && fabsf(six[0].gyro[2] - 1) < 1e-5f);
+    // Switched off, the sensor lies still whatever the sources send, and a non-finite sample never reaches the game.
+    input_motion_enable(false); input_motion(INPUT_MOTION_PHONE, flat, yaw);
+    assert(input_six_axis_states(six, 1, 0) == 1 && !six[0].gyro[2] && six[0].acc[2] == -1);
+    input_motion_enable(true);
+    const float bad[3] = {NAN, 0, 0};
+    input_motion(INPUT_MOTION_PHONE, flat, bad);
+    assert(input_six_axis_states(six, 1, 0) == 1 && !six[0].gyro[0] && isfinite(six[0].dir[0]) && six[0].dir[0] == 1);
     ZeldaScriptStep step;
     assert(input_script_parse("tap x\n", &step) && step.kind == SCRIPT_TAP && step.key == 7 && step.ms == 100);
     assert(input_script_parse("  tap return 250", &step) && step.key == 36 && step.ms == 250);

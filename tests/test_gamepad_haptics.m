@@ -5,6 +5,9 @@
 void input_clear(void) {}
 void input_controller(uint64_t b,float x,float y,float rx,float ry) {(void)b;(void)x;(void)y;(void)rx;(void)ry;}
 void input_controller_clear(void) {}
+void input_motion(unsigned s,const float a[3],const float r[3]) {(void)s;(void)a;(void)r;}
+void input_motion_clear(unsigned s) {(void)s;}
+void input_motion_enable(bool on) {(void)on;}
 
 @interface StoppedPlayer : NSObject
 @property unsigned stop_calls;
