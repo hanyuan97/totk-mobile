@@ -25,6 +25,8 @@ def adapt_interface(source):
     replacements = {
         'static FILE *g_tsv;': '#include "nvn_frame_probe.h"\n#include "trace_writer.h"\nstatic FILE *g_tsv;',
         'g_tsv = fopen(t, "w")': 'g_tsv = zelda_trace_open(t)',
+        # Atmosphère cheats (host/cheats.c) apply once per presented frame, on the presenting thread, as nxnative does.
+        '    g_frame++; cs_dump();': '    g_frame++; cs_dump();\n    { void dm_cheats_present(void); dm_cheats_present(); }',
         '    if (g_tsv) fflush(g_tsv);':
         '    if (g_tsv) { zelda_frame_probe p = zelda_frame_probe_start(); fflush(g_tsv); zelda_frame_probe_note(g_frame, "tsv-flush", p); }',
         '    if (g_tsv) fprintf(g_tsv, "%llu\\t%s\\t%.3f\\n", f, name, v);':

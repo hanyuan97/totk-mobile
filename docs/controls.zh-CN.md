@@ -38,6 +38,15 @@
 
 旧的设置文件会自动迁移：`896p`/`balanced` 变为原版，`performance` 变为 720，已删除的 `480p` 变为 640，旧的 MetalFX 开启变为 Window，旧的震动强度都视为开。未知字段会保留。
 
+## 金手指
+
+Mac 和 iPhone 都能用 Atmosphère 格式的金手指文件（金手指网站给 Switch 用的 `.txt`），引擎取自 nxnative（见 THIRD_PARTY_NOTICES.md）。文件必须对应本游戏的版本：把 `277178B7DBA1B6D4.txt`（1.4.3 更新）放进 `work/cheats`；该文件夹下的 Atmosphère 目录结构（`atmosphere/contents/0100F2C0115B6000/cheats/…`）也可以。`DM_CHEATS=<文件夹>` 可指定其他文件夹。
+
+- **Mac：** 「Cheats」菜单把每个金手指列成可勾选的一行（开 / 关成对的算一行），「Cheats On」是总开关，改完文件用「Reload Cheats」重新读取，「Open Cheats Folder」打开文件夹。勾选状态保存在文件旁的 `<build>.enabled`。
+- **iPhone：** 设置页（齿轮键）有 Cheats 区块，开关相同。文件夹是应用 Documents 里的 `work/cheats`，在「文件」App 的「我的 iPhone」下可见。修改游戏代码的金手指在 iPhone 上不能运行（代码页有签名），会显示为关闭并注明原因；修改数值的金手指可以用。
+- 会覆盖本项目为在苹果硬件上运行而改写过的指令的金手指会被拒绝，并显示原因（`script/cheat_words.py` 列出这些指令），不会因此让游戏崩溃。
+- 如果开着金手指时游戏中断，Mac 下次启动时所有金手指都先关闭；「Restore Saved Cheats」可以恢复。
+
 ## 启动画面
 
 在游戏能够不卡顿地绘制之前，启动画面会覆盖窗口，显示一条只前进不后退的进度条和当前阶段：检查着色器库、编译缺少的库（首次启动时较久）、启动游戏，然后加载着色器并构建以往运行记录下的管线。有计数的阶段会显示计数，例如 `Building pipelines 4,000 / 8,452`。预热结束后画面淡出，进入游戏。

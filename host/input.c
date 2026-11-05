@@ -131,6 +131,27 @@ int input_states(ZeldaPadState *out, int count, uint32_t id, uint32_t style) {
     return 1;
 }
 
+// The cheat engine's key mask (cheats.c, Atmosphère's opcodes 8 / C4): the buttons held on every source (bits 0..15) and the
+// sticks' directions past half deflection (16..23: left stick left, up, right, down, then the right stick), as the game would
+// read them now. Latched taps are left for the game's own read.
+uint64_t input_cheat_keys(void) {
+    pthread_mutex_lock(&input_lock);
+    uint64_t held = controller.buttons | touch.buttons;
+    for (unsigned i = 0; i < sizeof mapping / sizeof *mapping; i++) if (keys[mapping[i].key]) held |= mapping[i].button;
+    ZeldaPadState axes = {.lx = (keys[2] - keys[0]) * 32767, .ly = (keys[13] - keys[1]) * 32767,
+                          .rx = (keys[37] - keys[38]) * 32767, .ry = (keys[34] - keys[40]) * 32767};
+    source_axes(&touch, &axes); source_axes(&controller, &axes);
+    pthread_mutex_unlock(&input_lock);
+    const int32_t half = 16384, a[4] = {axes.lx, axes.ly, axes.rx, axes.ry};
+    for (unsigned s = 0; s < 2; s++) {
+        if (a[2 * s] < -half) held |= 1ull << (16 + 4 * s);
+        if (a[2 * s + 1] > half) held |= 1ull << (17 + 4 * s);
+        if (a[2 * s] > half) held |= 1ull << (18 + 4 * s);
+        if (a[2 * s + 1] < -half) held |= 1ull << (19 + 4 * s);
+    }
+    return held & 0xffffff;
+}
+
 #define WHY "Host keyboard and GameController supply one FullKey controller"
 HLE_FORCE("_ZN2nn3hid14InitializeNpadEv", WHY, void, h_pad_init, void) { input_clear(); }
 HLE_FORCE("_ZN2nn3hid22SetSupportedNpadIdTypeEPKjm", WHY, void, h_pad_ids, const uint32_t *ids, uint64_t n) {

@@ -136,6 +136,7 @@ static void store_settings(void (^change)(zelda_settings_t *settings)) {
 }
 
 #include "control_panel.inc"
+#include "cheats_menu.inc"
 // Shared by the menu bar and the control panel: apply at once, save, then refresh the panel.
 static void apply_target_fps(unsigned fps) {
     if (zelda_set_target_fps(fps)) {
@@ -299,6 +300,7 @@ static void install_menu(ZeldaMenu *actions) {
         NSMenuItem *holder = [[NSMenuItem alloc] initWithTitle:menu.title action:nil keyEquivalent:@""];
         holder.submenu = menu; [bar addItem:holder];
     }
+    [bar addItem:cheats_menu_install()];
     NSApp.mainMenu = bar;
 }
 

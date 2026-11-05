@@ -28,3 +28,4 @@ void input_motion(unsigned source, const float acc[3], const float rot[3]);
 void input_motion_clear(unsigned source);   // the source stopped; the next sample starts a new orientation
 void input_motion_enable(bool on);          // off: the sensor lies flat and still whatever the sources send (setting "motion_controls")
 int input_six_axis_states(ZeldaSixAxisState *out, int count, uint32_t handle);
+uint64_t input_cheat_keys(void);   // held buttons (0..15) and stick directions (16..23) for the cheat engine

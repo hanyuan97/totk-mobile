@@ -38,6 +38,15 @@ The game language follows the system's preferred languages (Traditional Chinese,
 
 Older settings files are migrated automatically: `896p`/`balanced` become Original, `performance` becomes 720, the removed `480p` becomes 640, an old MetalFX On becomes Window, and old rumble strengths read as On. Unknown fields are kept.
 
+## Cheats
+
+Atmosphère-format cheat files (the `.txt` files cheat sites share for a Switch) work on the Mac and the iPhone, with the engine taken from nxnative (see THIRD_PARTY_NOTICES.md). The file must be for this game's build: put `277178B7DBA1B6D4.txt` (update 1.4.3) in `work/cheats`; the Atmosphère tree (`atmosphere/contents/0100F2C0115B6000/cheats/…`) under that folder works too. `DM_CHEATS=<folder>` names another folder.
+
+- **Mac:** the **Cheats** menu lists every cheat as a checkmark row (an on / off pair is one row), with **Cheats On** as the master switch, **Reload Cheats** after editing the file, and **Open Cheats Folder**. The choices are kept in `<build>.enabled` beside the file.
+- **iPhone:** the settings sheet (gear button) has a Cheats section with the same switches. The folder is `work/cheats` in the app's Documents, which the Files app shows under On My iPhone. Cheats that change the game's code cannot run on the iPhone (its code pages are signed) and are shown off with that reason; cheats that change values work.
+- A cheat that would overwrite an instruction this project rewrote to run the game on Apple hardware is refused and shown off with the reason (`script/cheat_words.py` lists those words), so it cannot crash the game that way.
+- If the game stops while cheats are on, the next launch on the Mac starts with every cheat off; **Restore Saved Cheats** turns them back on.
+
 ## Startup screen
 
 Until the game can draw without stalling, a startup screen covers the window with one progress bar that only moves forward. It shows the current stage: checking the shader libraries, compiling the ones that are missing (a long step on the first launch), starting the game, then loading the shaders and building the pipelines recorded on earlier runs. Stages with a counter show it, for example `Building pipelines 4,000 / 8,452`. The screen fades into the game when the warm-up ends.

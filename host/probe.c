@@ -11,6 +11,7 @@
 #include "game_timing.h"
 #include "settings.h"
 #include "input_script.h"
+#include "cheats.h"
 #include <mach/mach.h>
 #include "mach_memory.h"
 #include <stdatomic.h>
@@ -282,6 +283,10 @@ int main(int argc, char **argv) {
     fprintf(stderr, "LOADED modules=%d unresolved_imports=%u gates=%u\n", g_nmod, nimports, ngates);
     for (unsigned i = 0; i < nimports; i++) fprintf(stderr, "UNRESOLVED %s\n", imports[i]);
     if (argc == 3) return 0;
+    // Atmosphère cheat files of this build in work/cheats (cheats.c); main.changed.tsv beside the modules guards code writes.
+    extern const char *zelda_module_dir;
+    zelda_module_dir = argv[1];
+    dm_cheats_init();
     run_timeout = seconds;
     alarm(0); // The gameplay timeout and scripted keys begin after shader preparation.
     front_run(run_game);

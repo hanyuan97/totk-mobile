@@ -3,6 +3,7 @@
 #include "threads.h"
 #include <pthread.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <mach/mach.h>
@@ -203,6 +204,31 @@ uint32_t kernel_readonly_memory(const void *data, size_t size) {
     pthread_mutex_unlock(&memory_lock);
     return handle;
 }
+
+// The cheat engine (cheats.c) addresses guest memory by Atmosphère's regions: the heap's opened span, the whole guest
+// block (aslr) and the alias region in it. Heap copies hold memory_lock, so a concurrent SetHeapSize cannot unmap the
+// span under them; both return 0 when every byte lay inside the opened span, 1 otherwise.
+void kernel_heap_range(uint64_t *base, size_t *size) {
+    pthread_mutex_lock(&memory_lock);
+    *base = space && heap_size ? (uint64_t)space + HEAP_OFFSET : 0; *size = space ? heap_size : 0;
+    pthread_mutex_unlock(&memory_lock);
+}
+static int heap_copy(uint64_t address, void *buffer, size_t size, bool write) {
+    pthread_mutex_lock(&memory_lock);
+    uint64_t base = (uint64_t)space + HEAP_OFFSET;
+    int bad = !space || !size || address < base || address - base > heap_size || size > heap_size - (address - base);
+    if (!bad) {
+        if (write) { dm_guest_write_prepare((void *)address, size); memcpy((void *)address, buffer, size); }
+        else memcpy(buffer, (const void *)address, size);
+    }
+    pthread_mutex_unlock(&memory_lock);
+    return bad;
+}
+int kernel_heap_read(uint64_t address, void *out, size_t size) { return heap_copy(address, out, size, false); }
+int kernel_heap_write(uint64_t address, const void *data, size_t size) { return heap_copy(address, (void *)data, size, true); }
+bool kernel_guest_contains(uint64_t address) { return space && address >= (uint64_t)space && address - (uint64_t)space < RESERVE; }
+void kernel_guest_range(uint8_t **base, size_t *size) { *base = space; *size = space ? RESERVE : 0; }
+void kernel_alias_range(uint8_t **base, size_t *size) { *base = space ? space + ALIAS_OFFSET : NULL; *size = space ? ALIAS_SIZE : 0; }
 
 bool kernel_access(uint64_t address, size_t size, unsigned permissions) {
     pthread_mutex_lock(&memory_lock);

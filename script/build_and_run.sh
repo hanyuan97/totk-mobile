@@ -10,6 +10,7 @@ fi
 test "$(uname -m)" = arm64 || { echo 'Apple silicon is required' >&2; exit 1; }
 test -f work/patched/main.patched.bin || { echo 'Run ./script/prepare.sh first' >&2; exit 1; }
 work/venv/bin/python tools/prepare_modules.py --check
+work/venv/bin/python script/cheat_words.py   # main.changed.tsv: the words a cheat must not overwrite (host/cheats.c)
 if [[ "$mode" != --codec-test && "$mode" != --font-test && "$mode" != --vibration-test && "$mode" != --time-test && "$mode" != --load-only && -z "${ZELDA_ROMFS:-}" ]]; then
     work/venv/bin/python script/prepare_render_resources.py
 fi
@@ -40,7 +41,7 @@ clang -O2 -g -Wall -Wextra -Wno-deprecated-declarations -fobjc-arc \
     $(pkg-config --cflags opus vpx) \
     -ivfsoverlay work/build/graphics-overlay.json \
     -I host -I "$PWD/core/host" -I "$gfx" -I "$gfx/nvn" -I "$gfx/nvn/include" \
-    "${sources[@]}" host/kernel.c host/threads.c host/timeline.c host/trace_writer.c host/services.c host/audio.c host/audio_mixer.c host/filesystem.c host/cloud_save.m host/graphics.m host/shader_prep.m host/input.c host/vibration.c host/swkbd.c host/movie.c host/movie_video.c host/font_watch.c host/input_script.c host/gamepad.m host/performance.c host/game_timing.c host/settings.m \
+    "${sources[@]}" host/kernel.c host/threads.c host/timeline.c host/trace_writer.c host/services.c host/audio.c host/audio_mixer.c host/filesystem.c host/cloud_save.m host/graphics.m host/shader_prep.m host/input.c host/vibration.c host/swkbd.c host/movie.c host/movie_video.c host/font_watch.c host/input_script.c host/gamepad.m host/performance.c host/game_timing.c host/settings.m host/cheats.c \
     "$PWD/core/host/loader.c" "$PWD/core/host/entry.S" \
     work/build/hle_nv.c host/display.c work/build/hle_nvn.c \
     "$gfx/nvn/nvn_mtl.m" "$gfx/nvn/nvn_refl.m" "$gfx/nvn/nvn_tex.c" host/nvn_dirty.c \
